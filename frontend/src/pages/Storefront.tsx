@@ -1,4 +1,4 @@
-import { ChevronDown, MapPin, PackageSearch, RotateCcw } from 'lucide-react'
+import { ChevronDown, MapPin, PackageCheck, PackageSearch, RotateCcw } from 'lucide-react'
 import { useDeferredValue, useMemo, useState } from 'react'
 import { CartDialog } from '../components/cart/CartDialog'
 import { Header } from '../components/layout/Header'
@@ -92,8 +92,10 @@ export function Storefront() {
                 ? `${data.total} ${data.total === 1 ? 'product' : 'products'} in ${cities[city]}`
                 : error ? '' : `Checking availability in ${cities[city]}…`}</p>
             </div>
-            <p className="catalog-mode">{isMockMode ? 'Mock mode' : 'Live API mode'}</p>
-
+            <div className="catalog-context">
+              <p className="inventory-label"><PackageCheck size={16} aria-hidden="true" /> Inventory for {cities[city]}</p>
+              <p className="catalog-mode">{isMockMode ? 'Mock mode' : 'Live API mode'}</p>
+            </div>
           </div>
           <div className="filters" role="group" aria-label="Product filters">
             <label className="filter-control">

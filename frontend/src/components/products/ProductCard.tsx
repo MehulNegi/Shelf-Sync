@@ -24,7 +24,7 @@ export function ProductCard({ product, quantity, onAdd, onDetails, showDescripti
   const [failedImages, setFailedImages] = useState<string[]>([])
   const image = candidates.find((url) => !failedImages.includes(url))
   return (
-    <Card className="product-card">
+    <Card className="product-card" data-available={product.available}>
       <div className={`product-image ${product.category}`}>
         {image
           ? <img key={image} src={image} alt={product.name} width="300" height="300" decoding="async"
@@ -46,7 +46,7 @@ export function ProductCard({ product, quantity, onAdd, onDetails, showDescripti
             {product.available ? <Check size={14} aria-hidden="true" /> : <Minus size={14} aria-hidden="true" />}
             {product.available ? 'In stock' : 'Out of stock'}
           </span>
-          <span>{product.stock} left in {cities[product.city]}</span>
+          <span className="stock-quantity">{product.stock} left in {cities[product.city]}</span>
         </div>
         <div className="product-actions">
           <button type="button" className="primary-button" disabled={!product.available || quantity >= product.stock}

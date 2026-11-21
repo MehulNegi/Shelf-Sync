@@ -127,7 +127,7 @@ export function CartDialog({ city, items, onAdjust, onRemove, onPlaced, refreshC
                 })}
               </ul>
               <div className="checkout-summary">
-                <p>Subtotal <strong>{products && lines.every(({ product }) => product) ? formatPrice(subtotal) : '—'}</strong></p>
+                <p className="checkout-subtotal">Subtotal <strong>{products && lines.every(({ product }) => product) ? formatPrice(subtotal) : '—'}</strong></p>
                 <button type="button" className="primary-button" disabled={!canCheckout || pending} onClick={checkout}>
                   {pending ? 'Placing order…' : isMockMode ? 'Place mock order' : 'Place order'}
                 </button>

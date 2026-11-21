@@ -23,7 +23,7 @@ export function OrderConfirmation({ order, city, onClose }: { order: OrderCreate
           {isMockMode ? 'Mock order confirmed.' : 'Your order is confirmed.'}
         </h3>
         <dl className="order-summary">
-          <div><dt>Order ID</dt><dd>{details?.id ?? order.orderId}</dd></div>
+          <div className="order-reference"><dt>Order ID</dt><dd>{details?.id ?? order.orderId}</dd></div>
           <div><dt>City</dt><dd>{cities[details?.city ?? city]}</dd></div>
           <div><dt>Order total</dt><dd>{formatPrice(details?.total ?? order.total)}</dd></div>
         </dl>
