@@ -3,12 +3,22 @@ import { loadConfig, SetupError } from './config/env.js';
 import { createPool } from './db/pool.js';
 import { PgProductRepository } from './repositories/products.js';
 import { PgOrderRepository } from './repositories/orders.js';
+import { createOpenSearchClient, loadOpenSearchConfig } from './config/opensearch.js';
+import { SearchProjection } from './services/search-projection.js';
+import { SearchProductRepository } from './repositories/search-products.js';
 
 async function start() {
   const config = loadConfig();
+  const searchConfig = process.env.OPENSEARCH_URL ? loadOpenSearchConfig() : undefined;
+  const searchClient = searchConfig ? createOpenSearchClient(searchConfig) : undefined;
   const pool = createPool(config);
-  const app = buildApp({ products: new PgProductRepository(pool), orders: new PgOrderRepository(pool), frontendOrigin: config.frontendOrigin, logger: true });
-  app.addHook('onClose', async () => { await pool.end(); });
+  const postgres = new PgProductRepository(pool);
+  const products = searchClient && searchConfig
+    ? new SearchProductRepository(new SearchProjection(searchClient, searchConfig.index), postgres,
+      () => console.warn('OpenSearch search failed; using PostgreSQL substring search.')) : postgres;
+  if (!searchClient) console.warn('OPENSEARCH_URL is unset; product search uses PostgreSQL substring matching.');
+  const app = buildApp({ products, orders: new PgOrderRepository(pool), frontendOrigin: config.frontendOrigin, logger: true });
+  app.addHook('onClose', async () => { try { await searchClient?.close(); } finally { await pool.end(); } });
   try {
     await pool.query('SELECT 1');
     await app.listen({ port: config.port, host: config.host });
