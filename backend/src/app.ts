@@ -8,6 +8,8 @@ import { OrderService, OrderTrackingService } from './services/orders.js';
 import type { OrderRepository, OrderTrackingRepository } from './types/order.js';
 import { registerAdminRoutes } from './routes/admin.js';
 import { registerCartRoutes, type CartApi } from './routes/cart.js';
+import { registerProfitabilityRoutes } from './routes/profitability.js';
+import type { ProfitabilityApi } from './services/profitability.js';
 import type { AdminApi } from './services/admin.js';
 
 export interface AppOptions {
@@ -15,6 +17,7 @@ export interface AppOptions {
   orders: OrderRepository;
   tracking?: OrderTrackingRepository;
   admin?: AdminApi;
+  profitability?: ProfitabilityApi;
   cart?: CartApi;
   frontendOrigin: string;
   logger?: boolean;
@@ -27,14 +30,19 @@ export function buildApp(options: AppOptions) {
     bodyLimit: 64 * 1024,
     routerOptions: {
       onMaxParamLength: (_path, _request, response) => {
-        response.writeHead(414, { 'content-type': 'application/json; charset=utf-8' });
-        response.end(JSON.stringify({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Request path parameter is too long' } }));
+        const finance=_request.url?.startsWith('/api/admin/profitability/') || (_request.url?.startsWith('/api/admin/products/')&&_request.url.includes('/costs'));
+        response.writeHead(finance?400:414, { 'content-type': 'application/json; charset=utf-8', ...(finance?{'cache-control':'no-store'}:{}) });
+        response.end(JSON.stringify({ success: false, error: { code: 'VALIDATION_ERROR', message: finance?'Invalid request parameters':'Request path parameter is too long' } }));
       }
     },
     ajv: { customOptions: { removeAdditional: false, coerceTypes: true, strictNumbers: true } }
   });
-  app.register(cors, () => async (request: import('fastify').FastifyRequest) => ({ origin: options.frontendOrigin, methods: ['GET','POST','PATCH','OPTIONS'],
-    credentials: Boolean(options.cart?.config.enabled && (request.url.startsWith('/api/cart/') || request.url.split('?')[0] === '/api/orders')) }));
+  app.register(cors, () => async (request: import('fastify').FastifyRequest) => {
+    const costPath=Boolean(options.profitability && /^\/api\/admin\/products\/[^/]+\/costs(?:\?|$)/.test(request.url));
+    return {origin:options.frontendOrigin,methods:['GET','POST','PATCH','OPTIONS',...(costPath?['PUT']:[])],
+      ...(costPath?{allowedHeaders:['Content-Type','Authorization','If-Match'],exposedHeaders:['ETag']}:{}),
+      credentials:Boolean(options.cart?.config.enabled && (request.url.startsWith('/api/cart/')||request.url.split('?')[0]==='/api/orders'))};
+  });
   app.setErrorHandler<FastifyError>((error, request, reply) => {
     if (error instanceof ApiError) {
       if (error.code === 'RESERVATION_BUSY') reply.header('Retry-After',1);
@@ -58,6 +66,7 @@ export function buildApp(options: AppOptions) {
   registerOrderRoutes(app, new OrderService(options.orders), options.cart);
   if (options.tracking) registerOrderTrackingRoutes(app, new OrderTrackingService(options.tracking));
   registerAdminRoutes(app, options.admin);
+  registerProfitabilityRoutes(app, options.profitability);
   registerCartRoutes(app, options.cart);
   return app;
 }

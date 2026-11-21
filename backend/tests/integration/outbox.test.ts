@@ -10,7 +10,9 @@ test('real PostgreSQL outbox coordination (Kafka transport double)', { skip: pro
   const config = loadConfig();
   const schema = `shelfsync_outbox_${randomUUID().replaceAll('-', '')}`;
   const admin = createPool(config);
-  const pool = createPool({ ...config, database: { ...config.database, options: `-c search_path=${schema}` } });
+  // Two connections still exercise concurrent publishers without a five-connection
+  // fixture-insert burst competing with the running hackathon services.
+  const pool = createPool({ ...config, database: { ...config.database, max: 2, options: `-c search_path=${schema}` } });
   let created = false;
   t.after(async () => {
     try { await pool.end(); if (created) await admin.query(`DROP SCHEMA "${schema}" CASCADE`); }
@@ -25,7 +27,8 @@ test('real PostgreSQL outbox coordination (Kafka transport double)', { skip: pro
   const producer: EventProducer = { async connect() {}, async publish(message) { messages.push(message); }, async disconnect() {} };
   async function insert() {
     const eventId = randomUUID();
-    const payload = { eventId, type: 'inventory.changed', schemaVersion: 1, productId: `test_${randomUUID()}`, city: 'pune', quantity: 0, inventoryVersion: 8, occurredAt: new Date().toISOString() };
+    // Current fixtures must respect the configured C7 schema-1 rollout cutoff.
+    const payload = { eventId, type: 'inventory.changed', schemaVersion: 2, reservedQuantity: 0, availableQuantity: 0, nextExpirationAt: null, causes: ['checkout.confirmed'], productId: `test_${randomUUID()}`, city: 'pune', quantity: 0, inventoryVersion: 8, occurredAt: new Date().toISOString() };
     await pool.query("INSERT INTO outbox_events (id, event_type, payload) VALUES ($1, 'inventory.changed', $2)", [eventId, JSON.stringify(payload)]);
     return payload;
   }
