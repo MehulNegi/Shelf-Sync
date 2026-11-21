@@ -1,232 +1,130 @@
-# ShelfSync 🛒
+# ShelfSync 🛍️
 
-**A multi-city retail storefront powered by real-time inventory synchronization, event-driven architecture, and intelligent product search.**
+**Helping neighborhood shops go online—without losing track of stock or earnings.**
 
-Built for **Build Bengaluru 2.0**, a 24-hour hackathon.
+ShelfSync is a full-stack commerce prototype designed around a simple idea: a traditional shopkeeper should be able to sell online, manage inventory across locations, fulfill orders, and understand the money behind each sale without needing to learn complicated software.
 
-## Overview
+Built for a hackathon, ShelfSync combines a customer storefront with a shopkeeper-friendly retailer workspace and a concurrency-safe inventory system.
 
-ShelfSync is an e-commerce platform designed for retail businesses operating across multiple cities in India.
+## Live demo
 
-It combines city-specific inventory tracking, typo-tolerant product discovery, and concurrency-safe checkout to provide a more reliable online shopping experience.
+**Frontend:** https://shelf-sync-tau.vercel.app
 
-Our pilot locations are **Bengaluru, Delhi, and Pune**.
+> **Deployment status:** The frontend is live on Vercel. The cloud backend and background workers are being prepared. Until they are connected, live catalog data, checkout, reservations, and retailer metrics may be unavailable. The local end-to-end demo remains the reference environment.
 
-## The Problem
+## What ShelfSync does
 
-Retailers expanding into online commerce face several challenges:
+### For customers
 
-- **Outdated inventory:** Customers may see products as available even after they have sold out.
-- **City-specific availability:** A product available in one city may be unavailable in another.
-- **Poor search experience:** Traditional keyword searches can fail when customers make spelling mistakes.
-- **Overselling:** Simultaneous checkout requests can attempt to purchase the same final unit.
+- Browse and search products, with city-specific availability.
+- Add products to a cart and check out.
+- Follow orders through the **My Orders** experience.
+- Get short-lived **30-second cart reservations** for limited stock, preventing another checkout from taking the reserved unit while the hold is valid.
 
-## Our Solution
+### For shopkeepers
 
-ShelfSync addresses these problems through three core services:
+- **My Shop:** a straightforward overview of orders and inventory, with quick access to activity.
+- **My Products:** search, filter, and inspect stock across cities.
+- **Customer Orders:** review recent orders and their statuses.
+- **My Earnings:** select products visually, inspect an estimated per-sale gain or loss, see grouped expenses, and try changing discounts and delivery costs.
 
-| Technology | Responsibility |
-|---|---|
-| Aiven PostgreSQL | Authoritative inventory, products, orders, and transactional consistency |
-| Aiven Apache Kafka | Event-driven inventory change propagation |
-| Aiven OpenSearch | Typo-tolerant product discovery and city-aware search |
+**My Earnings uses explicitly labeled fictional demo costs**, not verified accounting records. Its product-specific scenarios are editable and kept in browser memory; they do not modify actual prices, orders, or inventory.
 
-PostgreSQL acts as the **source of truth** for inventory. Kafka propagates committed inventory changes, and OpenSearch maintains a searchable projection of product availability.
-
-## Key Features
-
-### Multi-City Shopping
-
-Customers can select Bengaluru, Delhi, or Pune and view product availability specific to their city.
-
-### Intelligent Product Search
-
-OpenSearch enables typo-tolerant search.
-
-For example, searching `blutooth earphones` can return Bluetooth Earphones.
-
-### Product Filtering
-
-Browse and filter products by:
-
-- City
-- Category
-- Price range
-- Search query
-
-### Shopping Cart and Checkout
-
-Customers can add products to their cart and place orders.
-
-### Concurrency-Safe Inventory
-
-PostgreSQL transactions prevent two customers from successfully purchasing the same final unit.
-
-### Event-Driven Inventory Synchronization
-
-Committed inventory changes are published to Kafka through a transactional outbox and processed by a consumer that updates OpenSearch.
-
-## System Architecture
+## How it works
 
 ```text
-                 CUSTOMER
-                    |
-                    v
-             REACT FRONTEND
-                    |
-                    v
-               FASTIFY API
-                /       \
-               v         v
-          OPENSEARCH  POSTGRESQL
-          (Search)    (Source of Truth)
-                          |
-                          v
-                  TRANSACTIONAL OUTBOX
-                          |
-                          v
-                    KAFKA PUBLISHER
-                          |
-                          v
-                     APACHE KAFKA
-                          |
-                          v
-                     KAFKA CONSUMER
-                          |
-                          v
-                     OPENSEARCH
-                  (Inventory Update)
+                    CUSTOMER + SHOPKEEPER
+                             │
+                       React / Vite
+                             │
+                        Fastify API
+                             │
+                ┌────────────┴────────────┐
+                │                         │
+          PostgreSQL                  Transactional
+       orders + inventory               outbox
+                │                         │
+                │                      Kafka
+                │                         │
+                └──────────────────► OpenSearch
+                                     product search
 ```
 
-**Important:** OpenSearch is eventually consistent. Checkout always validates inventory against PostgreSQL, never against the search index.
+PostgreSQL is the authoritative source for inventory and orders. Inventory changes are published through a transactional outbox to Kafka and projected into OpenSearch. The reservation flow uses database-backed concurrency control so simultaneous checkouts cannot sell the same last unit twice.
 
-## Tech Stack
+## Tech stack
 
-| Layer | Technologies |
-|---|---|
-| Frontend | React, Vite, TypeScript, Tailwind CSS, shadcn/ui |
-| Backend | Node.js, Fastify, TypeScript |
+| Layer | Technology |
+| --- | --- |
+| Frontend | React, TypeScript, Vite, Tailwind CSS / shadcn-style components |
+| Backend | Node.js, TypeScript, Fastify |
 | Database | Aiven PostgreSQL |
-| Event Streaming | Aiven Apache Kafka |
-| Search | Aiven OpenSearch |
-| Version Control | Git, GitHub |
-| Development Assistance | OpenAI Codex |
+| Event streaming | Aiven Kafka |
+| Search projection | Aiven OpenSearch |
+| Frontend hosting | Vercel |
+| Backend hosting | Deployment in progress |
 
-## Repository Structure
+## Run locally
 
-```text
-Shelf-Sync/
-├── frontend/             # React storefront
-├── backend/
-│   ├── src/              # Fastify API and services
-│   ├── database/         # Migrations and seed data
-│   ├── workers/          # Event publisher and consumer
-│   └── tests/            # Backend tests
-├── contracts/
-│   └── api.md            # Shared API specification
-├── AGENTS.md             # Codex development instructions
-├── README.md
-└── .gitignore
-```
-
-## API Endpoints
-
-| Method | Endpoint | Purpose |
-|---|---|---|
-| GET | `/api/health` | Backend health check |
-| GET | `/api/products` | Product search and filtering |
-| GET | `/api/products/:id` | Product details |
-| POST | `/api/orders` | Create an order |
-| GET | `/api/orders/:id` | Retrieve order details |
-
-The authoritative API specification is available in [`contracts/api.md`](contracts/api.md).
-
-## Development Workflow
-
-ShelfSync is being developed in parallel using two Codex accounts.
-
-| Branch | Responsibility |
-|---|---|
-| `main` | Stable integration |
-| `feature/frontend` | Frontend implementation |
-| `feature/backend` | Backend and infrastructure implementation |
-
-Both agents must follow [`AGENTS.md`](AGENTS.md) and the shared API contract.
-
-Changes are tested before being merged into `main`.
-
-## Getting Started
-
-Clone the repository:
+**Prerequisites:** Node.js and npm, plus access to the project's configured Aiven services.
 
 ```bash
 git clone https://github.com/MehulNegi/Shelf-Sync.git
 cd Shelf-Sync
+npm install
+npm --prefix frontend install
+npm --prefix backend install
 ```
 
-The frontend and backend are currently being implemented.
+Configure the backend environment using the repository's example configuration and your own credentials. Configure `frontend/.env.local` for local development:
 
-Installation, environment configuration, database migration, and startup instructions will be added as those components become available.
+```dotenv
+VITE_API_BASE_URL=http://127.0.0.1:3000/api
+VITE_CART_RESERVATIONS=true
+```
 
-**Infrastructure requirements:**
+Once the required backend configuration and database migrations are in place, start the local demo:
 
-- Node.js and npm
-- Aiven PostgreSQL
-- Aiven Apache Kafka
-- Aiven OpenSearch
+```bash
+npm run demo
+```
 
-Do not commit credentials, private certificates, or `.env` files.
+- Storefront: http://127.0.0.1:5173
+- Retailer workspace: http://127.0.0.1:5173/#/admin
+- My Earnings: http://127.0.0.1:5173/#/admin/profit-os
 
-## Our Signature Demo: The Last-Unit Race
+`npm run demo` starts the frontend, API, outbox worker, inventory worker, and reservation-expiry worker. It is a **local development command**, not a production deployment command.
 
-The central technical demonstration shows how ShelfSync prevents overselling.
+> **Security:** Never commit `.env` files, database URLs, credentials, or certificates. Local-demo admin authentication and loopback-only HTTP reservation settings are **not suitable for public deployment**. Do not reset or reseed a shared database, or apply pending migrations, without reviewing the rollout plan.
 
-1. A product has exactly one unit available in Pune.
-2. Two customers attempt to purchase it simultaneously.
-3. PostgreSQL processes both checkout requests safely.
-4. Exactly one order succeeds.
-5. The other receives an insufficient-stock response.
-6. The successful transaction produces an outbox event.
-7. The event is published to Kafka.
-8. A consumer updates the OpenSearch inventory projection.
-9. The storefront eventually displays the product as out of stock.
+## Reliability and testing
 
-This demonstrates transactional consistency combined with asynchronous event-driven synchronization.
+ShelfSync includes automated frontend and backend tests, including isolated PostgreSQL integration tests for concurrent checkout and reservation expiry. The development team has exercised last-unit checkout races and the 30-second reservation lifecycle. For current results, run the test commands against your checked-out revision:
 
-## Project Status
+```bash
+npm --prefix frontend test
+npm --prefix frontend run build
+npm --prefix backend run build
+npm --prefix backend test
+```
 
-**In development — Build Bengaluru 2.0**
+## Current limitations
 
-The repository architecture and API contract have been established. Feature implementation and infrastructure integration are in progress.
+- The public frontend is deployed; cloud API and worker deployment is still in progress.
+- The retailer earnings tool models **per-sale contribution**, not audited net profit or guaranteed business outcomes.
+- Product-specific demo costs are illustrative and are not saved to the backend.
+- A profitability backend foundation exists, but its persistent cost-profile feature is disabled pending reviewed migration, financial policy, and production authorization.
 
-## Future Scope
+## The idea behind ShelfSync
 
-Potential future enhancements include:
+For a first-time online retailer, the important questions aren't “What is my event-stream topology?” or “What is my contribution margin formula?” They're:
 
-- Additional cities and store locations
-- Inventory analytics
-- Order tracking
-- Customer accounts
-- Personalized product recommendations
-- Advanced search and merchandising
+1. **What did customers order?**
+2. **Do I have enough stock?**
+3. **Will I earn money if I sell this product?**
 
-These are future possibilities, not features included in the initial MVP.
-
-## Team
-
-**Team: comand C-V**
-
-- Mehul Negi
-- Umair Shaikh
-- Aditya Mishra
-- Aryan Sirohi
-
-## Hackathon
-
-**Build Bengaluru 2.0**
-
-Project repository: https://github.com/MehulNegi/Shelf-Sync
+ShelfSync keeps the technical complexity behind the scenes and puts those questions front and center.
 
 ---
 
-*ShelfSync — Discover smarter. Shop confidently. Stay in sync.*
+**Built for a hackathon.** ShelfSync is a working prototype, not a production-ready financial or commerce service.
