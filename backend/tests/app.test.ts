@@ -1,7 +1,12 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { buildApp } from '../src/app.js';
+import { buildApp as createApp, type AppOptions } from '../src/app.js';
 import type { City, Product, ProductFilters, ProductRepository } from '../src/types/product.js';
+
+const buildApp = (options: Omit<AppOptions, 'orders'>) => createApp({ ...options, orders: {
+  async checkout() { assert.fail('product tests must not create orders'); },
+  async findById() { return undefined; }
+} });
 
 const stocks: Record<City, number> = { pune: 1, delhi: 8, bengaluru: 3 };
 const earphones = (city: City): Product => ({
@@ -84,17 +89,6 @@ test('missing products and routes return standard 404 errors', async t => {
   const unknown = await app.inject('/api/missing');
   assert.equal(unknown.statusCode, 404);
   assert.equal(unknown.json().error.code, 'NOT_FOUND');
-});
-
-test('orders return explicit 501 errors and never fake success', async t => {
-  const app = buildApp({ products: repository(), frontendOrigin: 'http://localhost:5173' });
-  t.after(() => app.close());
-  for (const request of [{ method: 'POST' as const, url: '/api/orders', payload: { city: 'pune', items: [{ productId: 'prod_001', quantity: 1 }] } }, { method: 'GET' as const, url: '/api/orders/ord_001' }]) {
-    const response = await app.inject(request);
-    assert.equal(response.statusCode, 501);
-    assert.equal(response.json().success, false);
-    assert.equal(response.json().error.code, 'NOT_IMPLEMENTED');
-  }
 });
 
 test('database failures do not expose driver errors or credentials', async t => {
