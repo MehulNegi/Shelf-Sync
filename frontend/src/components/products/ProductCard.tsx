@@ -16,13 +16,18 @@ interface ProductCardProps {
   onAdd: (product: Product) => void
   onDetails?: () => void
   showDescription?: boolean
+  reservationMode?: boolean
+  reservationPending?: boolean
+  addDisabled?: boolean
 }
 
-export function ProductCard({ product, quantity, onAdd, onDetails, showDescription }: ProductCardProps) {
+export function ProductCard({ product, quantity, onAdd, onDetails, showDescription, reservationMode, reservationPending, addDisabled }: ProductCardProps) {
   const candidates = productImageCandidates(product, isMockMode ? undefined : baseUrl, window.location.origin)
   const PlaceholderIcon = categoryIcons.get(product.category) ?? Package
   const [failedImages, setFailedImages] = useState<string[]>([])
   const image = candidates.find((url) => !failedImages.includes(url))
+  const atLimit = reservationMode ? quantity >= 99 : quantity >= product.stock
+  const canAdd = product.available && !atLimit && !addDisabled
   return (
     <Card className="product-card" data-available={product.available}>
       <div className={`product-image ${product.category}`}>
@@ -49,10 +54,10 @@ export function ProductCard({ product, quantity, onAdd, onDetails, showDescripti
           <span className="stock-quantity">{product.stock} left in {cities[product.city]}</span>
         </div>
         <div className="product-actions">
-          <button type="button" className="primary-button" disabled={!product.available || quantity >= product.stock}
+          <button type="button" className="primary-button" disabled={!canAdd}
             onClick={() => onAdd(product)} aria-label={`Add ${product.name} to cart`}>
-            {product.available && quantity < product.stock && <Plus size={16} aria-hidden="true" />}
-            {!product.available ? 'Unavailable' : quantity >= product.stock ? 'Stock limit reached' : 'Add to cart'}
+            {canAdd && <Plus size={16} aria-hidden="true" />}
+            {reservationPending ? 'Reserving…' : !product.available ? 'Unavailable' : atLimit ? 'Stock limit reached' : 'Add to cart'}
           </button>
           <span role="status">{quantity > 0 && `${quantity} in cart`}</span>
         </div>

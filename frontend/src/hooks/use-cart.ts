@@ -1,6 +1,6 @@
-import { useEffect, useReducer } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { baseUrl, isMockMode } from '../services/backend'
-import { cartReducer, loadCart, saveCart } from '../services/cart'
+import { cartReducer, loadCart, saveCart, type CartAction } from '../services/cart'
 
 const storageKey = `shelfsync.cart.v1:${isMockMode ? 'mock' : baseUrl}`
 const storage: Pick<Storage, 'getItem' | 'setItem'> = {
@@ -9,7 +9,13 @@ const storage: Pick<Storage, 'getItem' | 'setItem'> = {
 }
 
 export function useCart() {
-  const [cart, dispatch] = useReducer(cartReducer, storageKey, (key) => loadCart(storage, key))
-  useEffect(() => saveCart(storage, storageKey, cart), [cart])
+  const [cart, setCart] = useState(() => loadCart(storage, storageKey))
+  const current = useRef(cart)
+  const dispatch = useCallback((action: CartAction) => {
+    const next = cartReducer(current.current, action)
+    current.current = next
+    saveCart(storage, storageKey, next)
+    setCart(next)
+  }, [])
   return [cart, dispatch] as const
 }

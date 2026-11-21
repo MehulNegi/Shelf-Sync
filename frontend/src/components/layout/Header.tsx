@@ -6,13 +6,14 @@ import type { City } from '../../types/products'
 interface HeaderProps {
   city: City
   onCityChange: (city: City) => void
+  cityDisabled?: boolean
   cartCount: number
   onOpenCart: () => void
   search: string
   onSearchChange: (search: string) => void
 }
 
-export function Header({ city, onCityChange, cartCount, onOpenCart, search, onSearchChange }: HeaderProps) {
+export function Header({ city, onCityChange, cityDisabled, cartCount, onOpenCart, search, onSearchChange }: HeaderProps) {
   return (
     <header className="site-header" id="top">
       <div className="shell header-inner">
@@ -39,7 +40,7 @@ export function Header({ city, onCityChange, cartCount, onOpenCart, search, onSe
           </nav>
         </div>
         <div className="header-actions">
-          <CitySelector city={city} onChange={onCityChange} />
+          <CitySelector city={city} onChange={onCityChange} disabled={cityDisabled} />
           <button type="button" className="cart-toggle" onClick={onOpenCart}
             aria-label={`Cart, ${cartCount} ${cartCount === 1 ? 'item' : 'items'}`}>
             <ShoppingBag size={18} aria-hidden="true" />
