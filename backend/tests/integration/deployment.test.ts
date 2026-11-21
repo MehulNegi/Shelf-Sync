@@ -33,6 +33,11 @@ test('production-style trusted TLS proxy and secure cookie flow with isolated Po
   assert.equal((await pool.query('SELECT current_schema() AS schema')).rows[0].schema, schema);
   assert.equal((await app.inject('/api/ready')).statusCode, 503);
   await migrate(pool); // Private schema only. Never uses the shared schema.
+  const nonce = randomBytes(32);
+  const otherReplica = new PgCartRepository(pool, cart);
+  assert.deepEqual((await Promise.all([
+    repository.consumeGatewayNonce(nonce), otherReplica.consumeGatewayNonce(nonce),
+  ])).sort(), [false, true]);
   assert.equal((await app.inject('/api/ready')).statusCode, 200);
   const productId = 'render_fixture';
   await pool.query("INSERT INTO products(id,name,description,category,price,image_url) VALUES ($1,'Deployment fixture','Isolated','electronics',1999,'/test.jpg')", [productId]);

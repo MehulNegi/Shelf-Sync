@@ -1,4 +1,5 @@
 import { cartCheckout, normalizeCart, type CartApi } from './cart.js';
+import { reservationGatewayHook } from '../services/reservation-gateway.js';
 import type { FastifyInstance } from 'fastify';
 import { normalizeOrder, type OrderService, type OrderTrackingService } from '../services/orders.js';
 import { cities } from '../types/product.js';
@@ -6,6 +7,7 @@ import type { OrderInput } from '../types/order.js';
 
 export function registerOrderRoutes(app: FastifyInstance, service: OrderService, cart?: CartApi) {
   app.post<{ Body: OrderInput & { reservationIds?: string[] } }>('/api/orders', {
+    preParsing: reservationGatewayHook(cart),
     preValidation: async request => { if (request.body && typeof request.body==='object' && Object.hasOwn(request.body,'reservationIds')) normalizeCart(request.body,'checkout'); else normalizeOrder(request.body); },
     schema: {
       body: {
