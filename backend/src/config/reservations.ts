@@ -6,6 +6,7 @@ import { loopbackHostname, normalizeIp } from './admin.js';
 export interface ReservationConfig {
   enabled: boolean; ttlSeconds: number; localHttp: boolean; origin: string;
   rateSecret: Buffer; httpsProxyIps: string[];
+  gateway?: { audience: string; secret: Buffer };
 }
 export function loadReservationConfig(runtime: Pick<Config, 'host' | 'nodeEnv' | 'frontendOrigin'>, env: NodeJS.ProcessEnv = process.env): ReservationConfig {
   const boolean = (key: string) => {
@@ -32,5 +33,17 @@ export function loadReservationConfig(runtime: Pick<Config, 'host' | 'nodeEnv' |
   }
   const httpsProxyIps = (env.RESERVATION_HTTPS_PROXY_IPS ?? '').split(',').map(x => normalizeIp(x.trim())).filter(Boolean);
   if (httpsProxyIps.some(ip => !isIP(ip))) throw new SetupError('RESERVATION_HTTPS_PROXY_IPS must list explicit trusted TLS proxy IPs.');
-  return { enabled, ttlSeconds, localHttp, origin: runtime.frontendOrigin, rateSecret, httpsProxyIps };
+  const signedGateway = boolean('RESERVATION_SIGNED_GATEWAY');
+  if (!signedGateway) return { enabled, ttlSeconds, localHttp, origin: runtime.frontendOrigin, rateSecret, httpsProxyIps };
+  const rawSecret = env.RESERVATION_GATEWAY_SECRET ?? '';
+  const secret = Buffer.from(rawSecret, 'base64url');
+  const audience = env.RESERVATION_GATEWAY_AUDIENCE ?? '';
+  if (ttlSeconds !== 30) throw new SetupError('Signed reservation gateway requires a 30-second reservation TTL.');
+  if (localHttp || httpsProxyIps.length || frontend.protocol !== 'https:' ||
+      !/^https:\/\/[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.onrender\.com$/i.test(audience) ||
+      new URL(audience).origin !== audience || secret.length < 32 || secret.toString('base64url') !== rawSecret ||
+      secret.equals(rateSecret)) {
+    throw new SetupError('Signed reservation gateway requires an HTTPS storefront and Render audience, a dedicated base64url secret, and no peer or local HTTP exception.');
+  }
+  return { enabled, ttlSeconds, localHttp, origin: runtime.frontendOrigin, rateSecret, httpsProxyIps, gateway: { audience, secret } };
 }

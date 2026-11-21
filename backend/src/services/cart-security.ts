@@ -3,6 +3,7 @@ import { isIP } from 'node:net';
 import type { FastifyRequest } from 'fastify';
 import type { ReservationConfig } from '../config/reservations.js';
 import { loopbackIp, loopbackHostname, normalizeIp } from '../config/admin.js';
+import { gatewayClientIp } from './reservation-gateway.js';
 import { ApiError } from './products.js';
 
 export const cartSessionRequired = () => new ApiError(401, 'CART_SESSION_REQUIRED', 'A valid cart session is required');
@@ -11,7 +12,9 @@ export function cartTransport(request: FastifyRequest, config: ReservationConfig
   const denied = () => new ApiError(403, 'CART_ORIGIN_FORBIDDEN', 'Cart request origin is not allowed');
   const peer = normalizeIp(request.raw.socket.remoteAddress ?? '');
   const forwarded = ['forwarded', 'x-forwarded-for', 'x-forwarded-host', 'x-forwarded-proto'].some(h => request.headers[h] !== undefined);
-  if (config.localHttp) {
+  if (config.gateway) {
+    gatewayClientIp(request);
+  } else if (config.localHttp) {
     let host: URL;
     try { host = new URL(`http://${request.headers.host ?? ''}`); } catch { throw denied(); }
     if (!loopbackIp(peer) || !loopbackHostname(host.hostname) || host.username || host.password || host.pathname !== '/' || host.search || host.hash || forwarded) throw denied();
@@ -24,7 +27,7 @@ export function cartTransport(request: FastifyRequest, config: ReservationConfig
     throw new ApiError(415, 'UNSUPPORTED_MEDIA_TYPE', 'Content-Type must be application/json');
   }
   // Only a configured proxy can provide one overwritten source IP, not a chain.
-  const source = !config.localHttp && config.httpsProxyIps.includes(peer) && typeof request.headers['x-forwarded-for'] === 'string'
+  const source = config.gateway ? gatewayClientIp(request) : !config.localHttp && config.httpsProxyIps.includes(peer) && typeof request.headers['x-forwarded-for'] === 'string'
     && isIP(request.headers['x-forwarded-for']) ? normalizeIp(request.headers['x-forwarded-for']) : peer;
   return createHmac('sha256', config.rateSecret).update(source).digest();
 }

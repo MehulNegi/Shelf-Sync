@@ -20,6 +20,6 @@ export function validateRenderEnvironment(service: 'api' | 'worker', env: NodeJS
     if (env.RESERVATION_BROWSER_API_ORIGIN !== env.FRONTEND_ORIGIN) {
       throw new SetupError('Render reservations require a verified same-origin HTTPS /api proxy. Set RESERVATION_BROWSER_API_ORIGIN to FRONTEND_ORIGIN only after configuring it. Direct vercel.app to onrender.com cookies are cross-site; see docs/render-deployment.md.');
     }
-    if (!env.RESERVATION_HTTPS_PROXY_IPS?.trim()) throw new SetupError('Render reservations require verified explicit RESERVATION_HTTPS_PROXY_IPS. Do not trust arbitrary forwarded headers; see docs/render-deployment.md.');
+    if (env.RESERVATION_SIGNED_GATEWAY !== 'true' && !env.RESERVATION_HTTPS_PROXY_IPS?.trim()) throw new SetupError('Render reservations require verified explicit RESERVATION_HTTPS_PROXY_IPS. Do not trust arbitrary forwarded headers; see docs/render-deployment.md.');
   }
 }

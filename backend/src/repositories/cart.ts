@@ -38,6 +38,12 @@ export class PgCartRepository {
     const row = rows[0]!;
     return row.count > limit ? row.retry : undefined;
   }
+  async consumeGatewayNonce(digest: Buffer) {
+    const result = await this.pool.query(`INSERT INTO reservation_rate_limits(scope,key_digest,window_start,count,expires_at)
+      VALUES ('gateway_nonce',$1,to_timestamp(0),1,clock_timestamp()+interval '1 minute')
+      ON CONFLICT DO NOTHING`, [digest]);
+    return result.rowCount === 1;
+  }
   async httpAdmission(ip: Buffer) {
     const retry = await this.admit(this.pool, 'http', ip, 60, 1200);
     return retry ? errorResult(new ApiError(429, 'RESERVATION_RATE_LIMITED', 'Too many reservation requests'), retry) : undefined;

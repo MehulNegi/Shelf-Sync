@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { ReservationConfig } from '../config/reservations.js';
 import type { PgCartRepository } from '../repositories/cart.js';
 import { cartCredential, cartSessionRequired, cartTransport, cookieName } from '../services/cart-security.js';
+import { reservationGatewayHook } from '../services/reservation-gateway.js';
 import { ApiError } from '../services/products.js';
 import { normalizeOrder } from '../services/orders.js';
 import { cities, type City } from '../types/product.js';
@@ -69,14 +70,19 @@ export function registerCartRoutes(app: FastifyInstance, api?: CartApi) {
   for (const operation of ['session','read','create','patch','release'] as const) {
     const method=operation==='read'?'GET':operation==='patch'?'PATCH':'POST';
     const path=operation==='session'?'/api/cart/session':operation==='release'?'/api/cart/reservations/release':'/api/cart/reservations';
-    app.route({method,url:path,
+    app.route({method,url:path, preParsing:reservationGatewayHook(api),
       onRequest:async(request,reply)=>{
         reply.header('Cache-Control','no-store');
         if (!api?.config.enabled) throw new ApiError(503,'RESERVATIONS_DISABLED','Cart reservations are not enabled');
+        if (api.config.gateway) return;
         cartTransport(request,api.config,method!=='GET');
         if (operation!=='session' && !cartCredential(request,api.config)) throw cartSessionRequired();
       },
       preValidation:async request=>{
+        if (api?.config.gateway) {
+          cartTransport(request,api.config,method!=='GET');
+          if (operation!=='session' && !cartCredential(request,api.config)) throw cartSessionRequired();
+        }
         if (operation==='session') { object(request.body,[]); }
         else if (operation!=='read') {
           if (!uuid(request.headers['idempotency-key'])) throw invalid();
