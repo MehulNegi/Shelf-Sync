@@ -5,7 +5,7 @@ import { ProfitLab } from '../components/profit-os/ProfitLab'
 import { ProductProfitOS, type CatalogSelection } from '../components/profit-os/ProductProfitOS'
 import { StrategyComparison } from '../components/profit-os/StrategyComparison'
 import { baseline, toInputs, type Scenario, type ScenarioInputs } from '../lib/profit-os'
-import { updateProductDraft, type ProfitDrafts } from '../lib/profit-os-drafts'
+import { resetProductDraft, updateProductDraft, type ProfitDrafts } from '../lib/profit-os-drafts'
 
 export function ProfitOS() {
   const [inputs, setInputs] = useState(() => toInputs(baseline))
@@ -49,7 +49,7 @@ export function ProfitOS() {
           </div>
           <div className="profit-demo">
             <span className="command-state">{mode === 'demo' ? 'Demo assumptions' : 'Unsaved financial assumptions'}</span>
-            <p>{mode === 'demo' ? 'Read-only simulator using an illustrative sale.' : 'Product scenarios use catalog prices and your modeled costs.'} Changes apply only to this scenario.</p>
+            <p>{mode === 'demo' ? 'Read-only simulator using an illustrative sale.' : 'Product scenarios use catalog prices and fictional demo estimates.'} Changes apply only to this scenario.</p>
           </div>
         </div>
         <div className="profit-modes" role="group" aria-label="ProfitOS mode">
@@ -67,7 +67,8 @@ export function ProfitOS() {
         ) : (
           <ProductProfitOS selection={selection} drafts={drafts} onSelect={setSelection}
             onEdit={({ city, productId }, fields) =>
-              setDrafts((previous) => updateProductDraft(previous, city, productId, fields))} />
+              setDrafts((previous) => updateProductDraft(previous, city, productId, fields))}
+            onReset={({ city, productId }) => setDrafts((previous) => resetProductDraft(previous, city, productId))} />
         )}
       </main>
     </>

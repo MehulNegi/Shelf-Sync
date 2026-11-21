@@ -2,7 +2,8 @@ import { PackageSearch } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useProducts } from '../../hooks/use-products'
 import { catalogPricePaise, completeScenario, formatPaise, toInputs, type ProductInputs } from '../../lib/profit-os'
-import { productDraft, type ProfitDrafts } from '../../lib/profit-os-drafts'
+import { demoProductInputs } from '../../lib/profit-os-demo'
+import { editedProductFields, productDraft, type ProfitDrafts } from '../../lib/profit-os-drafts'
 import { isMockMode } from '../../services/backend'
 import { cities, type City } from '../../types/products'
 import { Input } from '../ui/input'
@@ -19,10 +20,11 @@ interface ProductProfitOSProps {
   selection: CatalogSelection
   drafts: ProfitDrafts
   onSelect: (selection: CatalogSelection) => void
+  onReset: (selection: CatalogSelection) => void
   onEdit: (selection: CatalogSelection, fields: Partial<ProductInputs>) => void
 }
 
-export function ProductProfitOS({ selection, drafts, onSelect, onEdit }: ProductProfitOSProps) {
+export function ProductProfitOS({ selection, drafts, onSelect, onEdit, onReset }: ProductProfitOSProps) {
   const { city, productId } = selection
   const [search, setSearch] = useState('')
   const [attempt, setAttempt] = useState(0)
@@ -34,7 +36,9 @@ export function ProductProfitOS({ selection, drafts, onSelect, onEdit }: Product
   const matches = products.filter(({ name, id }) => name.toLowerCase().includes(needle) || id.toLowerCase().includes(needle))
   const options = product && !matches.includes(product) ? [product, ...matches] : matches
   const price = catalogPricePaise(product?.price)
-  const input = productDraft(drafts, city, productId)
+  const defaults = product ? demoProductInputs(product, price) : undefined
+  const input = productDraft(drafts, city, productId, defaults)
+  const editedFields = editedProductFields(drafts, city, productId)
   const scenario = completeScenario(price, input)
 
   return (
@@ -81,13 +85,25 @@ export function ProductProfitOS({ selection, drafts, onSelect, onEdit }: Product
       </section>
       {product && (
         <>
+          {defaults && (
+            <div className="profit-demo-controls">
+              <p><strong>Demo financial estimates — fictional costs generated for demonstration.</strong>
+                {' '}Catalog prices are read-only. Scenario edits stay in this browser tab until you leave ProfitOS.</p>
+              <button className="clear-filters" type="button" disabled={!editedFields.size}
+                onClick={() => onReset(selection)}>Reset to demo estimates</button>
+            </div>
+          )}
           <div className="profit-workspace">
             <OrderAutopsy catalog={{ price, input }} scenario={scenario} />
-            <ProfitLab catalog={{ input, scenario, hasPrice: price !== null,
+            <ProfitLab catalog={{ input, scenario, hasPrice: price !== null, editedFields,
                 onChange: (field, value) => onEdit(selection, { [field]: value }) }} />
           </div>
           <StrategyComparison catalogScenario={scenario} onApply={(next) => {
-            onEdit(selection, toInputs(next))
+            const values = toInputs(next)
+            const changes = Object.fromEntries(Object.entries(values).filter(([field, value]) =>
+              input[field as keyof ProductInputs] !== value,
+            ))
+            if (Object.keys(changes).length) onEdit(selection, changes)
             document.getElementById('profit-discount')?.focus()
           }} />
         </>

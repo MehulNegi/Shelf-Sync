@@ -33,7 +33,7 @@ export function OrderAutopsy({ catalog, scenario = baseline }: AutopsyProps) {
   return (
     <section className="command-panel profit-autopsy" aria-labelledby="autopsy-heading">
       <h2 id="autopsy-heading"><ReceiptText size={20} aria-hidden="true" /> Order Autopsy</h2>
-      <p>{catalog ? 'Catalog price and unsaved financial assumptions' : 'Illustrative order · Demo assumptions'}</p>
+      <p>{catalog ? 'Catalog price and fictional demo estimates or your unsaved edits' : 'Illustrative order · Demo assumptions'}</p>
       <h3>{catalog ? 'Scenario revenue' : 'Illustrative revenue'}</h3>
       <dl className="profit-ledger">
         <LedgerRow label={catalog ? 'Catalog selling price' : 'Original merchandise price'} amount={price} />
