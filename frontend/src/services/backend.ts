@@ -1,8 +1,10 @@
 import { ApiError } from './api-error'
 
 const configuredUrl: string = (import.meta.env.VITE_API_BASE_URL ?? '').trim()
-export const baseUrl = configuredUrl.replace(/\/+$/, '').replace(/\/api$/, '')
-export const isMockMode = !configuredUrl
+const normalizedUrl = configuredUrl.replace(/\/+$/, '')
+// A literal /api enables live requests with an empty browser-side origin.
+export const baseUrl = normalizedUrl.replace(/\/api$/, '')
+export const isMockMode = !normalizedUrl
 
 export async function requestJson<T>(path: string, status: number | readonly number[], init?: RequestInit): Promise<T> {
   let response: Response
