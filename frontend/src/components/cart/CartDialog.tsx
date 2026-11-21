@@ -1,4 +1,4 @@
-import { AlertCircle, Clock3, ShoppingBag } from 'lucide-react'
+import { AlertCircle, ShoppingBag } from 'lucide-react'
 import { useCallback, useRef, useState } from 'react'
 import type { CartReservations } from '../../hooks/use-cart-reservations'
 import { useResource } from '../../hooks/use-resource'
@@ -6,11 +6,12 @@ import { formatPrice } from '../../lib/format-price'
 import { ApiError, checkoutErrorMessage } from '../../services/api-error'
 import { isMockMode } from '../../services/backend'
 import { placeOrder } from '../../services/orders'
-import { checkoutReservationIds, remainingSeconds } from '../../services/reservations'
+import { checkoutReservationIds, reservationDisplay } from '../../services/reservations'
 import { getProduct } from '../../services/products'
 import type { OrderCreated, OrderItem } from '../../types/orders'
 import { cities, type City } from '../../types/products'
 import { Dialog } from '../ui/dialog'
+import { ReservationCountdown } from './ReservationCountdown'
 import { ReservationFeedback } from './ReservationFeedback'
 import { OrderConfirmation } from './OrderConfirmation'
 
@@ -114,8 +115,7 @@ export function CartDialog({ city, items, onAdjust, onRemove, onPlaced, refreshC
                 {lines.map(({ productId, product, quantity }) => {
                   const stock = product?.available ? product.stock : 0
                   const name = product?.name ?? productId
-                  const hold = reservations?.holds.find((row) => row.city === city && row.productId === productId)
-                  const seconds = remainingSeconds(hold, reservations?.now ?? 0)
+                  const display = reservations && reservationDisplay(reservations.holds, city, { productId, quantity }, reservations.now)
                   function adjust(delta: number) {
                     if (reservations) void reservations.changeQuantity(city, { productId, quantity: quantity + delta }, false)
                     else onAdjust(productId, delta, stock)
@@ -127,16 +127,12 @@ export function CartDialog({ city, items, onAdjust, onRemove, onPlaced, refreshC
                         <strong>{name}</strong>
                         {product && <p>{formatPrice(product.price)} each</p>}
                         {reservations && (
-                          seconds > 0 && hold?.quantity === quantity ? (
-                            <span className="reservation-clock" data-urgent={seconds <= 10}>
-                              <Clock3 size={15} aria-hidden="true" />
-                              <span role="timer" aria-label="Reservation remaining">Reserved · {seconds}s</span>
-                            </span>
+                          display?.status === 'active' ? (
+                            <ReservationCountdown seconds={display.seconds} />
                           ) : (
                             <div className="reservation-retry">
                               <p className="checkout-error">
-                                {hold?.status === 'expired' || hold?.status === 'active' && seconds === 0
-                                  ? 'Reservation expired' : 'Reservation required'}
+                                {display?.status === 'expired' ? 'Reservation expired' : 'Reservation required'}
                               </p>
                               <button className="text-button" type="button" disabled={busy}
                                 onClick={() => void reservations.changeQuantity(city, { productId, quantity }, true)}>

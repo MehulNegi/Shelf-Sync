@@ -82,6 +82,22 @@ export function remainingSeconds(hold: TimedReservation | undefined, now: number
   return hold?.status === 'active' ? Math.max(0, Math.ceil((hold.deadline - now) / 1000)) : 0
 }
 
+export type ReservationDisplay = { status: 'active'; seconds: number } | { status: 'expired' }
+
+export function reservationDisplay(
+  holds: TimedReservation[],
+  city: City,
+  { productId, quantity }: OrderItem,
+  now: number,
+): ReservationDisplay | undefined {
+  if (quantity < 1) return
+  const hold = holds.find((row) => row.city === city && row.productId === productId)
+  if (!hold) return
+  const seconds = remainingSeconds(hold, now)
+  if (seconds > 0 && hold.quantity === quantity) return { status: 'active', seconds }
+  if (hold.status === 'expired' || (hold.status === 'active' && seconds === 0)) return { status: 'expired' }
+}
+
 export function checkoutReservationIds(city: City, items: OrderItem[], holds: TimedReservation[], now: number) {
   if (!items.length || items.length > 20) return null
   const ids = items.map((item) => holds.find((row) =>

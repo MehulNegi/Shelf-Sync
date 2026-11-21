@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict'
 import { after, test } from 'node:test'
+import { createElement } from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
 import { createServer } from 'vite'
 
 process.env.VITE_API_BASE_URL = 'https://store.example/api'
@@ -7,10 +9,12 @@ process.env.VITE_CART_RESERVATIONS = 'true'
 const vite = await createServer({ server: { middlewareMode: true, ws: false, watch: null } })
 const {
   checkoutReservationIds, getReservations, isUncertainReservation, mutateReservation,
-  newOperationKey, remainingSeconds, reservationError, startCartSession, timedReservations,
+  newOperationKey, remainingSeconds, reservationDisplay, reservationError, startCartSession, timedReservations,
 } = await vite.ssrLoadModule('/src/services/reservations.ts')
 const { placeOrder } = await vite.ssrLoadModule('/src/services/orders.ts')
 const { cartReducer, loadCart } = await vite.ssrLoadModule('/src/services/cart.ts')
+const { ProductCard } = await vite.ssrLoadModule('/src/components/products/ProductCard.tsx')
+const { ReservationCountdown } = await vite.ssrLoadModule('/src/components/cart/ReservationCountdown.tsx')
 after(() => vite.close())
 
 const key = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
@@ -127,4 +131,68 @@ test('city navigation keeps desired quantities and purchase/removal change only 
   cart = cartReducer(cart, { type: 'remove', city: 'delhi', productId: item.productId })
   assert.deepEqual(cart.itemsByCity.pune, [item])
   assert.deepEqual(cart.itemsByCity.delhi, [])
+})
+
+
+const product = {
+  id: item.productId, name: 'Earphones', description: 'Test product', category: 'electronics',
+  city, price: 1999, stock: 0, available: false, imageUrl: '/images/earphones.jpg',
+}
+
+test('product card and cart countdown render identical accessible MM:SS from the same hold', () => {
+  globalThis.window = { location: new URL('https://store.example') }
+  const [hold] = timedReservations(envelope, 0, [])
+  for (const [now, expected, urgent] of [
+    [0, '00:30', false], [19_000, '00:11', false], [20_000, '00:10', true],
+  ]) {
+    const reservation = reservationDisplay([hold], city, item, now)
+    const clock = renderToStaticMarkup(createElement(ReservationCountdown, { seconds: reservation.seconds }))
+    const card = renderToStaticMarkup(createElement(ProductCard, {
+      product, quantity: 1, reservationMode: true, reservation, onAdd() {},
+    }))
+    assert(card.includes(clock))
+    assert(clock.includes(expected))
+    assert(clock.includes(`data-urgent="${urgent}"`))
+    assert.match(clock, /Reserved for you/)
+    assert.match(clock, /role="timer" aria-live="off"/)
+    assert.match(card, /Out of stock/)
+  }
+})
+
+test('expiry replaces the timer only for an item still in the selected city cart', () => {
+  const [hold] = timedReservations(envelope, 0, [])
+  const expired = reservationDisplay([hold], city, item, 30_000)
+  assert.deepEqual(expired, { status: 'expired' })
+  const render = (reservation) => renderToStaticMarkup(createElement(ProductCard, {
+    product, quantity: 1, reservationMode: true, reservation, onAdd() {},
+  }))
+  assert.match(render(expired), /Reservation expired/)
+  for (const nonDisplay of [
+    reservationDisplay([], city, item, 0),
+    reservationDisplay([hold], 'delhi', item, 0),
+    reservationDisplay([hold], city, { ...item, quantity: 0 }, 30_000),
+    reservationDisplay([hold], city, { ...item, quantity: 2 }, 0),
+    reservationDisplay([{ ...hold, status: 'released' }], city, item, 0),
+  ]) {
+    assert.equal(nonDisplay, undefined)
+    assert.doesNotMatch(render(nonDisplay), /Reserved for you|Reservation expired|role="timer"/)
+  }
+})
+
+test('reconciliation and absolute quantity changes reuse the deadline, and explicit reacquisition supplies a new one', () => {
+  const [hold] = timedReservations(envelope, 0, [])
+  const afterRefresh = { ...envelope, serverTime: '2026-11-21T12:00:20.000Z' }
+  const [reloaded] = timedReservations(afterRefresh, 0, [])
+  assert.deepEqual(reservationDisplay([reloaded], city, item, 0), { status: 'active', seconds: 10 })
+
+  const updatedItem = { ...item, quantity: 2 }
+  const [updated] = timedReservations({ ...afterRefresh, reservations: [{ ...row, quantity: 2 }] }, 21_000, [hold])
+  assert.deepEqual(reservationDisplay([updated], city, updatedItem, 21_000), { status: 'active', seconds: 9 })
+  assert.equal(reservationDisplay([updated], city, item, 21_000), undefined)
+  const nextStart = '2026-11-21T12:00:35.000Z'
+  const [renewed] = timedReservations({ serverTime: nextStart, reservations: [{
+    ...row, reservationId: '55555555-5555-4555-8555-555555555555', createdAt: nextStart,
+    updatedAt: nextStart, expiresAt: '2026-11-21T12:01:05.000Z',
+  }] }, 35_000, [hold])
+  assert.deepEqual(reservationDisplay([renewed], city, item, 35_000), { status: 'active', seconds: 30 })
 })

@@ -10,7 +10,7 @@ import { useCartReservations } from '../hooks/use-cart-reservations'
 import { useCart } from '../hooks/use-cart'
 import { useProducts } from '../hooks/use-products'
 import { isMockMode } from '../services/backend'
-import { remainingSeconds } from '../services/reservations'
+import { remainingSeconds, reservationDisplay } from '../services/reservations'
 import { categories, cities, type Product, type ProductQuery } from '../types/products'
 
 export function Storefront() {
@@ -172,12 +172,18 @@ export function Storefront() {
             </div>
           ) : (
             <div className="product-grid">
-              {data.products.map((product) => (
-                <ProductCard key={product.id} product={product} quantity={quantityOf(product.id)} onAdd={addProduct}
-                  reservationMode={reservations.enabled} addDisabled={reservationLocked}
-                  reservationPending={reservations.workingProduct === product.id}
-                  onDetails={() => setDialog({ kind: 'product', id: product.id })} />
-              ))}
+              {data.products.map((product) => {
+                const quantity = quantityOf(product.id)
+                const display = reservations.enabled && product.city === city
+                  ? reservationDisplay(reservations.holds, city, { productId: product.id, quantity }, reservations.now)
+                  : undefined
+                return (
+                  <ProductCard key={product.id} product={product} quantity={quantity} onAdd={addProduct}
+                    reservationMode={reservations.enabled} addDisabled={reservationLocked} reservation={display}
+                    reservationPending={reservations.workingProduct === product.id}
+                    onDetails={() => setDialog({ kind: 'product', id: product.id })} />
+                )
+              })}
             </div>
           )}
         </section>
