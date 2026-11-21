@@ -1,15 +1,63 @@
-# C8 retailer profitability design
+# ShelfSync ProfitOS — Smart Profit Advisor
 
-The [shared API contract](../../contracts/api.md#11-retailer-profitability-c8--proposed) defines the frontend boundary. C8 is a proposal. It adds no routes, migrations, transactions, integrations, or financial records in this sprint.
+Sprint 8 starts with F14, a frontend-only decision simulator. B8 is the planned persistent profitability backend. This document describes both phases. It makes no implementation, migration, or environment changes.
 
-## Existing data and boundaries
+## Phase 1 — Smart Profit Advisor MVP (F14)
+
+### Order Autopsy
+
+Show one illustrative order with the original merchandise price, discount, discounted merchandise revenue, customer-paid delivery fee, acquisition, courier, packaging, payment processing, marketing, and estimated contribution. Label the example and each cost as **Demo assumption** or **Modeled expense**. The example’s revenue is **Illustrative revenue**. If F14 displays an existing recorded order total through an authorized read, label that field **Actual recorded order total**, keep it separate from scenario revenue, and preserve its original value. A recorded order total alone does not establish tax-exclusive revenue, payment settlement, or realized profit. Clearly label computed outcomes **Estimated contribution**.
+
+| Baseline input or output | Amount |
+| --- | ---: |
+| Original merchandise price | ₹2,000 |
+| Retailer discount | 20% (₹400) |
+| Discounted merchandise revenue | ₹1,600 |
+| Customer-paid delivery fee | ₹0 |
+| Acquisition | ₹1,250 |
+| Courier paid by retailer | ₹180 |
+| Packaging | ₹30 |
+| Payment processing | ₹40 |
+| Marketing | ₹150 |
+| Total modeled expenses | ₹1,650 |
+| Estimated contribution | −₹50 |
+
+### Loss Prevention Lab
+
+Let the retailer change the discount rate, courier cost, and customer-paid delivery fee independently. Show the resulting revenue, modeled expenses, estimated contribution, and signed change versus the baseline. Customer delivery fees add to scenario revenue, while retailer courier costs stay in expenses. Hold acquisition, packaging, payment processing, and marketing fixed across the illustrative comparisons. The example defines no separate taxes, refunds, or additional costs, and the simulator does not infer these for real orders.
+
+| Strategy | Retailer discount | Courier | Customer delivery fee | Estimated contribution | Change versus baseline |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Baseline | 20% | ₹180 | ₹0 | −₹50 | ₹0 |
+| Reduce discount | 15% | ₹180 | ₹0 | +₹50 | +₹100 |
+| Reduce courier cost | 20% | ₹120 | ₹0 | +₹10 | +₹60 |
+| Apply both adjustments | 15% | ₹120 | ₹0 | +₹110 | +₹160 |
+
+Explain recommendations using deterministic rules. If estimated contribution is negative, show the shortfall and the break-even discount where one exists. Compare feasible inputs using their exact contribution deltas. For example, lowering the retailer discount to 15% improves modeled contribution by ₹100, reducing courier cost to ₹120 improves it by ₹60, and a ₹50 customer-paid delivery fee breaks even at the baseline if the other inputs remain fixed. Display the assumptions and any loss remaining after a proposed change. The rules model unit economics from the entered values. They do not predict how demand or fees will change. The MVP uses no AI or machine learning.
+
+### Paise and break-even rules
+
+- Parse currency input as decimal text to integer paise. Accept at most two fractional rupee digits and reject negative scenario inputs. Use TypeScript `bigint` for monetary arithmetic. Represent discounts in integer basis points from 0 to 10,000.
+- Compute discount paise as round-half-up(original merchandise paise × discount basis points ÷ 10,000). Subtract it once from merchandise price. Scenario revenue equals discounted merchandise plus the customer delivery fee. Modeled expenses equal acquisition + courier + packaging + payment processing + marketing. Estimated contribution equals scenario revenue minus modeled expenses and may be negative.
+- At fixed expenses and delivery fee, the maximum break-even discount is the largest allowed rate whose rounded discount amount is at most original merchandise price + delivery fee − modeled expenses. Use exact integer comparisons at the basis-point boundary. The baseline allowance is ₹2,000 + ₹0 − ₹1,650 = ₹350, or **17.5%**. If the allowance is negative, no allowed discount breaks even. At a zero merchandise price, mark the discount threshold as not applicable and show the contribution at the entered fee and cost. If every rate is non-loss-making, show the supported maximum and whether it breaks even exactly or remains profitable.
+- F14 is frontend-only and works with explicitly labeled demo assumptions. Scenario edits and recommendations are display-only. They never modify real orders, inventory, pricing, or reservations and call no profitability or cost-management endpoints.
+
+### MVP acceptance checks
+
+Verify all four contribution results and the 17.5% break-even rate. Also verify the customer-delivery-fee control independently, paise rounding at the discount boundary, loss and no-feasible-discount cases, the distinction between recorded and illustrative revenue, and that simulation controls cause no writes or changes to commerce state.
+
+## Phase 2 — Persistent Profitability Backend (B8), planned
+
+B8 preserves the original C8 design for product cost profiles and city overrides, immutable historical snapshots, admin cost management, backend revenue and profitability aggregation, additive PostgreSQL migrations, and tax/refund accounting. B8 is not implemented and is not a dependency of F14. The [shared API contract](../../contracts/api.md#11-retailer-profitability-c8--proposed) defines the planned admin endpoints and schemas.
+
+### Existing data and boundaries
 
 - Checkout already converts exact PostgreSQL `numeric` merchandise prices to paise with `bigint`, snapshots the charged unit price in `order_items.unit_price`, and stores the order total. `order_items.id` is the stable identity key, with a separate unique constraint on `(order_id, product_id)`. The schema has no list-price snapshot, explicit discount, tax, customer shipping, payment settlement, return, or refund ledger.
 - Legacy and reservation-aware checkout share inventory allocation. Future snapshot capture belongs in the existing confirmed-order database transaction and applies to both paths. It requires no new client inputs or public response fields.
 - Inventory and admin stock metrics remain physical quantities. OpenSearch remains for discovery and Kafka carries inventory outbox events. Neither supplies accounting inputs, and C8 publishes no cost data to them.
 - Status transitions are currently blocked. A current or historical status cannot establish that a payment was captured, refunded, or that inventory was recovered. C8 does not add payment or fulfilment capabilities.
 
-## Calculation model
+### Calculation model
 
 Calculate at the order-item level in signed integer paise. Original quantities and cost inputs are nonnegative; recoveries and corrections are explicit signed adjustments. Aggregate component paise before calculating ratios. A rounding rule applies only at a defined allocation, estimate calculation, or output boundary. Use round-half-away-from-zero for rates and ratios. Preserve exact sums using PostgreSQL `numeric` with integer-scale checks or `bigint` for bounded storage and TypeScript `bigint` for application arithmetic. Never parse money through JavaScript `Number`. Capture the rule with a snapshot calculation version.
 
@@ -37,7 +85,7 @@ A sale-era confirmed snapshot can record zero only when a verified source or an 
 
 For a normalized calculation test vector with all relevant inputs known, merchandise gross of 100000 paise, customer shipping of 8000, discounts of 10000, and tax-exclusive refunds of 20000 give 78000 net revenue. Tax collected/refunded of 16200/3600 have no effect on that calculation. Net procurement of 36000, fulfilment of 13000, fees of 2800, retailer tax of 500, and overhead of 3000 give 25700 contribution, 55300 total cost, 22700 profit after overhead and 2910 basis points margin.
 
-## Immutable snapshots and later facts
+### Immutable snapshots and later facts
 
 - Resolve the whole profile for the order's city, with global fallback only if no city version is effective. Capture the selected profile version and amount/provenance of each component at confirmation. Read all relevant profiles in one MVCC statement/snapshot using a single database decision timestamp inside checkout. Concurrent committed changes are either visible within that snapshot or apply to subsequent sales. The selected version must both be visible and have an effective time at or before the decision timestamp.
 - Start with profile costs as estimates and capture estimated paise in the line snapshot, including the selected payment method/rate and fee-bearing charge if known. Preserve recorded sales and any verified facts as actual. An absent profile or null input remains unknown. No cost gaps change an order’s checkout result or price. Historical snapshot amounts and source references are immutable even when the current profile is superseded.
@@ -45,7 +93,7 @@ For a normalized calculation test vector with all relevant inputs known, merchan
 - Confirmed orders are the population. Pending orders and cancellations with no evidence of confirmation do not count as sales. A cancellation after confirmed purchase does not delete the original snapshot or mechanically reverse revenue or expense. Record explicit verified financial reversals and inventory recoveries only if a future authorized workflow supplies them. Returns reduce net units only when verified, and procurement recovery is recorded separately at the amount actually recovered. Refunds are monetary adjustments to the original sale cohort. Reports revise that cohort as facts arrive and expose `asOf`. No refund, cancellation, payment or restock is synthesized from a status observation. For a legacy order, include a persisted confirmed status or confirmed history as evidence, without fabricating the date of the transition. Use the original recorded order creation date for cohort grouping.
 - Existing orders without a C8 snapshot retain their recorded merchandise prices and sold quantity. Report tax-exclusive gross only when the sale-era tax policy establishes it. Leave costs, profit, and any revenue, tax, fee or adjustment facts whose coverage cannot be proven as unknown. Mark legacy coverage separately. Do not apply today's profile to historic lines or backfill presumed zeros. If a future verified import is approved, store its source and provenance in separate facts. Enable actual/no-adjustment classification only for periods and components whose authoritative ledger coverage is established.
 
-## Proposed additive migration plan
+### Proposed additive migration plan
 
 1. **Create profile storage.** Add `product_cost_scopes` with primary key `(product_id, scope_key)` and product FK `ON DELETE RESTRICT`. Scope key is `global` or a supported city, mapped to nullable `city` at the API. It supplies a stable lock and revision for conditional writes. Add immutable `product_cost_versions` with surrogate PK, scope FK, INR currency constraint, positive version, effective and recorded timestamps, audit actor reference, and nullable exact nonnegative unit components. Use a CHECK for mutually exclusive payment method fields and a bounded rate. Require unique `(product_id, scope_key, version)` and `(product_id, scope_key, effective_at)`. Add a latest-effective index on `(product_id, scope_key, effective_at DESC)`. Enforce monotonic effective times under a scope lock, comparing `If-Match` and advancing revision inside the same transaction. First create uses an insert-or-lock path so two writers cannot both win.
 2. **Add snapshot tables.** Add immutable `order_financial_snapshots` keyed by order ID, with order FK `ON DELETE RESTRICT`, currency, confirmation/snapshot timestamps, original business date, city, and pricing/allocation rule version and provenance. Add immutable `order_item_financial_snapshots` keyed by the existing `order_items.id` and referencing its header and optional profile version. Include product, city, original sold quantity and exact per-line financial components, plus provenance for each component. Enforce matching order by a composite foreign key to `order_items(id, order_id)` with a supporting unique constraint, or equivalent transactional verification where adding that constraint is undesirable. Use constraints for currency, city, positive quantity, sane paise bounds, null/unknown consistency, and enum values. Store absolute captured financial facts, with totals derived at query time. Protect frozen rows from updates or deletes with dedicated writer permissions and an immutability guard. Index snapshot headers by `(business_date, city, order_id)` and item snapshots by `(product_id, order_id)`.
@@ -53,11 +101,11 @@ For a normalized calculation test vector with all relevant inputs known, merchan
 4. **Deploy additively and stage activation.** Review PostgreSQL version and lock windows, deploy empty tables and indexes without rewriting or seeding existing orders, and use the existing migration discipline. Create large indexes in a separately reviewed online step where necessary. Keep finance endpoints default off. Before enabling checkout snapshot capture, deploy all checkout writers with the same snapshot policy and verify both direct and reserved checkout paths. Make the database decision about availability as it already does, with no external calls or change to reservation lifetimes. Missing financial inputs write unknowns; a structural snapshot write failure must roll back the whole checkout once snapshot capture is enabled. Do not retain open transactions for reports across pages. Never truncate, reset, or reseed shared Aiven data.
 5. **Report legacy data by read-time join.** Join confirmed orders/order items to snapshots and use a null snapshot to identify the legacy population. Keep the current admin stock metrics and public response contracts separate. Use isolated test schemas/databases for verification, reconcile aggregate totals with auditable source fixtures, and enable admin reads and authorized cost writes only after financial decisions and review. Rollback disables finance access/capture without deleting audit history; any gap in capture is legacy/incomplete data.
 
-## Frontend behavior
+### Frontend behavior
 
 Use backend `Summary` for KPI cards and cost breakdowns, `TrendPoint` for chart gaps, and `ProductProfitability.outcome` for product indicators. Display estimated/mixed badges and coverage counts near relevant metrics. Highlight missing costs without sorting unknown profit as zero. Use backend date labels for business-day charts. Format paise and basis-point strings using decimal-safe display only. The cost form displays currency, per-unit fields, the payment method/rate, exact scope and inherited effective version. Submit explicit null for unknown values and preserve an explicit zero. Preserve unsaved edits on a conflict while instructing the user to reload/reconcile before resubmitting. Show neither profitability nor private cost inputs on public product routes.
 
-## Required verification
+### Required verification
 
 | Area | Required checks |
 | --- | --- |
@@ -69,7 +117,7 @@ Use backend `Summary` for KPI cards and cost breakdowns, `TrendPoint` for chart 
 | Reporting and regression | IST date boundaries, order counts distinct per scope, daily trend gaps, stable keyset traversal, reserved and legacy checkout, existing order/tracking responses, inventory/reservations, and inventory-only outbox/Kafka/OpenSearch regressions. |
 | Authorization | Default-off, JWT and write-role requirements, loopback opt-in/Origin/CORS restrictions, stale/missing conditional headers, no client-supplied role trust, no public cost exposure, no private figures in logs/events, and unavailable PostgreSQL fails closed. |
 
-## Decisions before implementation
+### Decisions before implementation
 
 - Confirm whether INR prices include tax, the authoritative tax/invoice treatment, whether checkout's recorded merchandise is sufficient to classify booked revenue, and any customer-shipping or discount funding policy.
 - Choose procurement costing method and attribution evidence such as weighted average versus lot/FIFO. Decide how to allocate labour, shipping, and overhead across products and cities, and how partial-return recovery is valued. Until then profile figures are estimates.

@@ -745,7 +745,7 @@ Plan these tests before enabling (none are claimed executed by this design):
 
 ## 11. Retailer Profitability (C8) — Proposed
 
-This section defines a future admin-only feature. Existing routes, checkout requests and replies, stock reservations, and event schemas are unchanged. The [financial and migration design](../backend/docs/retailer-profitability.md) defines transaction, accounting, rollout, and verification rules.
+This section defines the planned, unimplemented **Phase 2 — Persistent Profitability Backend (B8)** and its admin-only endpoints. **Phase 1 — ProfitOS Smart Profit Advisor (F14)** is a frontend-only simulation with labeled demo assumptions and does not call these endpoints. Existing routes, checkout requests and replies, stock reservations, and event schemas are unchanged. The [ProfitOS and profitability design](../backend/docs/retailer-profitability.md) defines the MVP and preserves B8 transaction, accounting, rollout, and verification rules.
 
 ### 11.1 Access, dates, and common validation
 
