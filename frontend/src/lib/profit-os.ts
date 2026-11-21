@@ -119,18 +119,18 @@ export const strategies = [
 ] as const
 
 export const labFields = [
-  { name: 'discount', label: 'Retailer discount (%)' },
-  { name: 'courier', label: 'Courier cost (₹)' },
-  { name: 'deliveryFee', label: 'Customer delivery fee (₹)' },
+  { name: 'discount', label: 'Discount you offer (%)' },
+  { name: 'courier', label: 'Delivery cost you pay (₹)' },
+  { name: 'deliveryFee', label: 'Delivery fee the customer pays (₹)' },
 ] as const
 
 export const expenseFields = [
-  { name: 'acquisition', label: 'Acquisition' },
+  { name: 'acquisition', label: 'Cost to buy the product' },
   { name: 'packaging', label: 'Packaging' },
-  { name: 'payment', label: 'Payment processing' },
-  { name: 'marketing', label: 'Marketing' },
-  { name: 'labour', label: 'Labour' },
-  { name: 'tax', label: 'Non-recoverable taxes' },
+  { name: 'payment', label: 'Payment fee' },
+  { name: 'marketing', label: 'Advertising' },
+  { name: 'labour', label: 'Staff time' },
+  { name: 'tax', label: 'Taxes and duties you can’t reclaim' },
 ] as const
 
 type LabField = typeof labFields[number]['name']

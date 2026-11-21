@@ -12,12 +12,13 @@ const stockLabels: Record<StockStatus, string> = {
 interface InventoryPanelProps {
   data?: AdminSnapshot['inventory']
   loading: boolean
+  filters?: InventoryQuery
   pageNumber: number
   onFilters: (filters: InventoryQuery) => void
   onPage: (cursor?: string) => void
 }
 
-export function InventoryPanel({ data, loading, pageNumber, onFilters, onPage }: InventoryPanelProps) {
+export function InventoryPanel({ data, loading, filters, pageNumber, onFilters, onPage }: InventoryPanelProps) {
   const [search, setSearch] = useState('')
   const needle = search.trim().toLowerCase()
   const visible = data?.inventory.filter((row) =>
@@ -40,22 +41,22 @@ export function InventoryPanel({ data, loading, pageNumber, onFilters, onPage }:
       <h2 id="command-inventory-title"><Database size={19} aria-hidden="true" /> Inventory</h2>
       <form className="command-filters" onSubmit={submit}>
         <label className="filter-control">City
-          <select className="control" name="city">
+          <select className="control" name="city" defaultValue={filters?.city}>
             <option value="">All cities</option>
             {Object.entries(cities).map(([city, name]) => <option key={city} value={city}>{name}</option>)}
           </select>
         </label>
         <label className="filter-control">Category
-          <Input name="category" maxLength={100} placeholder="All categories" />
+          <Input name="category" defaultValue={filters?.category} maxLength={100} placeholder="All categories" />
         </label>
         <label className="filter-control">Stock status
-          <select className="control" name="stockStatus">
+          <select className="control" name="stockStatus" defaultValue={filters?.stockStatus}>
             <option value="">All stock statuses</option>
             {Object.entries(stockLabels).map(([status, label]) => <option key={status} value={status}>{label}</option>)}
           </select>
         </label>
         <label className="filter-control">Page size
-          <Input name="limit" type="number" min={1} max={100} defaultValue={50} required />
+          <Input name="limit" type="number" min={1} max={100} defaultValue={filters?.limit ?? 50} required />
         </label>
         <button className="primary-button" type="submit">Apply filters</button>
       </form>
@@ -66,22 +67,25 @@ export function InventoryPanel({ data, loading, pageNumber, onFilters, onPage }:
         <div className="command-table-skeleton motion-safe:animate-pulse" aria-hidden="true"><span /><span /><span /></div>
       )}
       {data && (visible?.length ? (
-        <div className="command-table-wrap" role="region" aria-label="Inventory records table" tabIndex={0}>
-          <table className="command-table">
-            <caption className="sr-only">Current inventory by product and city</caption>
-            <thead><tr>
-              <th scope="col">Product</th><th scope="col">Category</th><th scope="col">City</th>
-              <th scope="col">Price</th><th scope="col">Stock</th><th scope="col">Status</th>
-            </tr></thead>
-            <tbody>{visible.map((row) => (
-              <tr key={`${row.productId}:${row.city}`}>
-                <th scope="row">{row.name}</th><td>{row.category}</td><td>{cities[row.city]}</td>
-                <td>{formatPrice(row.price)}</td><td>{row.stock}</td>
-                <td><span className="command-stock-badge" data-status={row.stockStatus}>{stockLabels[row.stockStatus]}</span></td>
-              </tr>
-            ))}</tbody>
-          </table>
-        </div>
+        <>
+          <p className="retailer-scroll-note">Scroll the table sideways to see all stock details.</p>
+          <div className="command-table-wrap" role="region" aria-label="Inventory records table" tabIndex={0}>
+            <table className="command-table">
+              <caption className="sr-only">Current inventory by product and city</caption>
+              <thead><tr>
+                <th scope="col">Product</th><th scope="col">Category</th><th scope="col">City</th>
+                <th scope="col">Price</th><th scope="col">Stock</th><th scope="col">Status</th>
+              </tr></thead>
+              <tbody>{visible.map((row) => (
+                <tr key={`${row.productId}:${row.city}`}>
+                  <th scope="row">{row.name}</th><td>{row.category}</td><td>{cities[row.city]}</td>
+                  <td>{formatPrice(row.price)}</td><td>{row.stock}</td>
+                  <td><span className="command-stock-badge" data-status={row.stockStatus}>{stockLabels[row.stockStatus]}</span></td>
+                </tr>
+              ))}</tbody>
+            </table>
+          </div>
+        </>
       ) : <p className="command-empty">{data.inventory.length ? 'No products on this page match your search.' : 'No inventory records match these filters.'}</p>)}
       {(data || pageNumber > 1) && (
         <div className="command-pagination">

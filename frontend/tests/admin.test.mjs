@@ -11,6 +11,7 @@ const { adminErrorMessage, clearsAdminData, isLocalAdminConfiguration, loadAdmin
 const { startAdminRefresh } = await vite.ssrLoadModule('/src/services/admin-refresh.ts')
 const { OverviewPanels, RecentOrders, EventActivity } = await vite.ssrLoadModule('/src/components/admin/DashboardPanels.tsx')
 const { InventoryPanel } = await vite.ssrLoadModule('/src/components/admin/InventoryPanel.tsx')
+const { RetailerHeader } = await vite.ssrLoadModule('/src/components/admin/RetailerHeader.tsx')
 after(() => vite.close())
 const fixture = JSON.parse(await readFile(new URL('./fixtures/admin.json', import.meta.url), 'utf8'))
 const signal = new AbortController().signal
@@ -43,14 +44,14 @@ test('contract responses parse unchanged and only contracted inventory query fie
 
 test('KPI counts, city ratios, order details and Kafka publication labels render from the response', () => {
   const overview = renderToStaticMarkup(createElement(OverviewPanels, { overview: fixture.overview }))
-  assert.match(overview, /Total inventory units<\/dt><dd>99<\/dd>/)
-  assert.match(overview, /Low-stock product-city records<\/dt><dd>3<\/dd>/)
-  assert.match(overview, /Out-of-stock product-city records<\/dt><dd>1<\/dd>/)
-  assert.match(overview, /Orders today<\/dt><dd>7<\/dd>/)
-  assert.match(overview, /Pending outbox events<\/dt><dd>2<\/dd>/)
+  assert.match(overview, /Total units in stock<\/dt><dd>99<\/dd>/)
+  assert.match(overview, /Products running low on stock<\/dt><dd>3<\/dd>/)
+  assert.match(overview, /Products out of stock<\/dt><dd>1<\/dd>/)
+  assert.match(overview, /Today’s orders<\/dt><dd>7<\/dd>/)
+  assert.match(overview, /Shop updates waiting to be sent<\/dt><dd>2<\/dd>/)
   assert.match(overview, /Pune<\/dt>.*20 units.*Delhi<\/dt>.*30 units.*Bengaluru<\/dt>.*width:100%.*49 units/)
   const orders = renderToStaticMarkup(createElement(RecentOrders, { orders: fixture.orders.orders }))
-  assert.match(orders, /ord_fixture.*Pune.*1,999.*2026-11-21T10:00:00.000Z.*Confirmed/)
+  assert.match(orders, /Pune.*1,999.*2026-11-21T10:00:00.000Z.*Confirmed.*ord_fixture/)
   const events = renderToStaticMarkup(createElement(EventActivity, { events: fixture.events.events }))
   assert.match(events, /Pending publication/)
   assert.match(events, /Published to Kafka/)
@@ -128,4 +129,13 @@ test('polling skips in-flight work, refreshes at five seconds and discards respo
   t.mock.timers.tick(5_000)
   assert.equal(loads.length, 2)
   assert(!events.some((event) => event.data === 'stale'))
+})
+
+test('retailer navigation preserves direct destinations and announces only the current page', () => {
+  const markup = renderToStaticMarkup(createElement(RetailerHeader, { active: 'earnings' }))
+  assert.match(markup, /href="#\/admin"[^>]*>.*My Shop/)
+  assert.match(markup, /href="#\/admin\/products"[^>]*>.*My Products/)
+  assert.match(markup, /href="#\/admin\/orders"[^>]*>.*Customer Orders/)
+  assert.match(markup, /href="#\/admin\/profit-os" aria-current="page"[^>]*>.*My Earnings/)
+  assert.equal(markup.match(/aria-current="page"/g)?.length, 1)
 })
