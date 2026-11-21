@@ -11,38 +11,33 @@ export function StrategyComparison({ onApply, catalogScenario }: {
 
   return (
     <section className="command-panel profit-strategies" aria-labelledby="strategy-heading">
-      <h2 id="strategy-heading"><GitCompareArrows size={20} aria-hidden="true" /> Strategy comparison</h2>
-      <p>{demo ? 'Compare demo strategies against the baseline, then load one into the lab.'
-        : options.length > 1 ? 'Compare modeled alternatives against the current assumptions.'
-          : options.length === 1 ? 'Adjust the discount or delivery fee to compare alternatives.'
-            : 'Complete the product assumptions to compare strategies.'}</p>
-      {reference !== undefined && <div className="command-table-wrap" tabIndex={0} role="region" aria-label="ProfitOS strategy comparison">
-        <table className="command-table profit-strategy-table">
-          <thead>
-            <tr>
-              <th scope="col">Strategy</th><th scope="col">Discount</th><th scope="col">Courier</th>
-              <th scope="col">Delivery fee</th><th scope="col">Estimated contribution</th>
-              <th scope="col">{demo ? 'Change vs baseline' : 'Change vs current'}</th><th scope="col" aria-label="Load strategy" />
-            </tr>
-          </thead>
-          <tbody>
-            {options.map(({ name, scenario }) => {
-              const { contributionPaise } = calculateScenario(scenario)
-              const delta = contributionPaise - reference
-              return (
-                <tr key={name}>
-                  <th scope="row">{name}</th><td>{formatDiscount(scenario.discountBps)}</td>
-                  <td>{formatPaise(scenario.courierPaise)}</td><td>{formatPaise(scenario.deliveryFeePaise)}</td>
-                  <td data-sign={contributionTone(contributionPaise)}>{formatPaise(contributionPaise, true)}</td>
-                  <td data-sign={contributionTone(delta)}>{formatPaise(delta, true)}</td>
-                  <td><button className="clear-filters" type="button" onClick={() => onApply(scenario)}
-                    aria-label={`Load strategy: ${name}`}>Load in lab</button></td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      </div>}
+      <h2 id="strategy-heading"><GitCompareArrows size={20} aria-hidden="true" /> Ways to Earn More</h2>
+      <p>{options.length > 1 ? 'Compare the options, then pick one to try with your estimate.'
+        : options.length === 1 ? 'Adjust the discount or delivery fee to compare options.'
+          : 'Fill in the costs above to compare options.'}</p>
+      {reference !== undefined && <ul className="retailer-strategies">
+        {options.map(({ name, scenario }) => {
+          const { contributionPaise } = calculateScenario(scenario)
+          const delta = contributionPaise - reference
+          const title = name === 'Baseline' ? 'Original example'
+            : name === 'Apply both adjustments' ? 'Lower discount and delivery cost'
+              : name.replace(/courier/i, 'delivery')
+          return (
+            <li key={name}>
+              <h3>{title}</h3>
+              <dl>
+                <div><dt>Discount</dt><dd>{formatDiscount(scenario.discountBps)}</dd></div>
+                <div><dt>Delivery cost you pay</dt><dd>{formatPaise(scenario.courierPaise)}</dd></div>
+                <div><dt>Delivery fee the customer pays</dt><dd>{formatPaise(scenario.deliveryFeePaise)}</dd></div>
+                <div><dt>Estimated contribution</dt><dd data-sign={contributionTone(contributionPaise)}>{formatPaise(contributionPaise, true)}</dd></div>
+                <div><dt>{demo ? 'Change from example' : 'Change from current estimate'}</dt><dd data-sign={contributionTone(delta)}>{formatPaise(delta, true)}</dd></div>
+              </dl>
+              <button className="clear-filters" type="button" onClick={() => onApply(scenario)}
+                aria-label={`Try this option: ${title}`}>Try this option</button>
+            </li>
+          )
+        })}
+      </ul>}
     </section>
   )
 }

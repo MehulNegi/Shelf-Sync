@@ -32,29 +32,30 @@ export function OrderAutopsy({ catalog, scenario = baseline }: AutopsyProps) {
 
   return (
     <section className="command-panel profit-autopsy" aria-labelledby="autopsy-heading">
-      <h2 id="autopsy-heading"><ReceiptText size={20} aria-hidden="true" /> Order Autopsy</h2>
-      <p>{catalog ? 'Catalog price and fictional demo estimates or your unsaved edits' : 'Illustrative order · Demo assumptions'}</p>
-      <h3>{catalog ? 'Scenario revenue' : 'Illustrative revenue'}</h3>
+      <h2 id="autopsy-heading"><ReceiptText size={20} aria-hidden="true" /> Where My Money Goes</h2>
+      <p>{catalog ? 'Catalog selling price with sample costs and your edits' : 'Example sale with sample costs'}</p>
+      <dl className="profit-ledger profit-autopsy-total">
+        <LedgerRow label={catalog ? 'Estimated contribution' : 'Example sale: estimated contribution'}
+          amount={result?.contributionPaise ?? null} signed />
+      </dl>
+      <p>Money left after the costs you entered. Your final take-home profit may differ.</p>
+      <h3>Money coming in</h3>
       <dl className="profit-ledger">
-        <LedgerRow label={catalog ? 'Catalog selling price' : 'Original merchandise price'} amount={price} />
+        <LedgerRow label={catalog ? 'Catalog selling price' : 'Original product price'} amount={price} />
         <LedgerRow label={rate !== null ? `Retailer discount (${formatDiscount(rate)})` : 'Retailer discount'}
           amount={sale ? -sale.discountPaise : null} />
-        <LedgerRow label="Discounted merchandise" amount={sale?.discountedMerchandisePaise ?? null} />
-        <LedgerRow label="Customer-paid delivery fee" amount={fee} />
-        <LedgerRow label={catalog ? 'Total scenario revenue' : 'Total illustrative revenue'}
+        <LedgerRow label="Product price after discount" amount={sale?.discountedMerchandisePaise ?? null} />
+        <LedgerRow label="Delivery fee the customer pays" amount={fee} />
+        <LedgerRow label="Total money coming in"
           amount={sale && fee !== null ? sale.discountedMerchandisePaise + fee : null} subtotal />
       </dl>
-      <h3>Modeled expenses</h3>
+      <h3>Estimated costs</h3>
       <dl className="profit-ledger">
-        <LedgerRow label="Courier paid by retailer" amount={parseHundredths(input.courier)} />
+        <LedgerRow label="Delivery cost you pay" amount={parseHundredths(input.courier)} />
         {expenseFields.filter(({ name }) => catalog || name !== 'labour' && name !== 'tax').map(({ name, label }) => (
           <LedgerRow key={name} label={label} amount={parseHundredths(input[name])} />
         ))}
-        <LedgerRow label="Total modeled expenses" amount={result?.expensesPaise ?? null} subtotal />
-      </dl>
-      <dl className="profit-ledger profit-autopsy-total">
-        <LedgerRow label={catalog ? 'Estimated contribution' : 'Baseline estimated contribution'}
-          amount={result?.contributionPaise ?? null} signed />
+        <LedgerRow label="Total estimated costs" amount={result?.expensesPaise ?? null} subtotal />
       </dl>
     </section>
   )

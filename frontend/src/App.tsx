@@ -16,6 +16,8 @@ function currentHash() {
 export default function App() {
   const hash = useSyncExternalStore(subscribeToHash, currentHash)
   if (hash === '#/admin/profit-os') return <ProfitOS />
+  if (hash === '#/admin/products') return <InventoryCommandCenter view="products" />
+  if (hash === '#/admin/orders') return <InventoryCommandCenter view="orders" />
   if (hash === '#/admin') return <InventoryCommandCenter />
   if (hash === '#/orders') return <MyOrders />
   return <Storefront />

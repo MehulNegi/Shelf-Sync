@@ -477,3 +477,80 @@ footer { background: #f5eef7; border-top: 1px solid var(--color-line); }
 .profit-demo-controls p { flex: 1 1 24rem; font-size: .875rem; color: var(--purple-dark); }
 .profit-field-label { display: flex; flex-direction: column; justify-content: flex-end; }
 .profit-field-source { color: var(--muted); font-size: .75rem; font-weight: 500; }
+
+.retailer-header { position: static; }
+.retailer-header-inner { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: .65rem; padding-block: .75rem; }
+.retailer-shopping { min-height: 44px; }
+.retailer-nav { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .5rem; }
+.retailer-nav a {
+  display: flex; gap: .55rem; align-items: center; justify-content: center; min-height: 48px;
+  padding: .55rem; border: 1px solid var(--color-line); border-radius: .75rem; font-weight: 700;
+  background: white; color: var(--purple-dark); line-height: 1.25;
+}
+.retailer-nav a svg { flex-shrink: 0; }
+.retailer-nav a:hover, .retailer-earnings-link:hover { background: #f5eef8; }
+.retailer-nav a[aria-current="page"] { color: white; background: var(--purple-dark); border-color: var(--purple-dark); }
+.retailer-header a:focus-visible, .retailer-page :is(a, button, input, select, summary, [tabindex="0"]):focus-visible {
+  outline: 3px solid #6b388d; outline-offset: 3px;
+}
+.retailer-page { padding-block: clamp(1rem, 3vw, 2rem) 3rem; font-size: 1rem; line-height: 1.55; }
+.retailer-welcome {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1rem;
+  padding: clamp(1rem, 4vw, 2.25rem); margin-bottom: 1.25rem; border: 1px solid #e2d2ed;
+  border-radius: 1.2rem; background: linear-gradient(115deg, #efe2f7, #faf5fb); color: var(--purple-dark);
+}
+.retailer-welcome h1 { font-size: clamp(2rem, 5vw, 3.5rem); line-height: 1.12; margin-bottom: .4rem; font-weight: 800; }
+.retailer-welcome p { font-size: clamp(1.05rem, 2vw, 1.25rem); color: var(--purple-dark); }
+.retailer-page .command-panel { padding: clamp(.9rem, 2.6vw, 1.45rem); border-radius: 1rem; }
+.retailer-page :is(.command-panel h2, .retailer-section-title) { font-size: clamp(1.2rem, 2.3vw, 1.5rem); font-weight: 750; }
+.retailer-metric-note { color: var(--muted); margin-bottom: .75rem; }
+.retailer-page .retailer-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .75rem; margin-bottom: 1rem; }
+.retailer-summary .command-metric :is(dt, dd) { font-weight: 700; }
+.retailer-summary .command-metric dd { font-size: 2rem; }
+.retailer-details { margin-bottom: 1rem; }
+.retailer-details summary { cursor: pointer; padding-block: .45rem; min-height: 44px; font-weight: 750; color: var(--purple-dark); }
+.retailer-details summary svg { display: inline-block; vertical-align: text-bottom; margin-inline-end: .3rem; }
+.retailer-details .command-panel { margin-top: .65rem; }
+.retailer-stock-totals { display: flex; flex-wrap: wrap; gap: .7rem 1.5rem; margin-bottom: .7rem; }
+.retailer-stock-totals dd { font-weight: 750; }
+.retailer-earnings-link {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center;
+  gap: .8rem; margin-block: 1rem; color: var(--purple-dark);
+}
+.retailer-earnings-link h2 { margin-bottom: .25rem; }
+.retailer-page :is(.clear-filters, .primary-button, .control, .text-button) { min-height: 44px; font-size: 1rem; }
+.retailer-page .filter-control, .retailer-page .command-table { font-size: 1rem; }
+.retailer-page .command-table :is(th, td) { padding: .85rem .7rem; }
+.retailer-scroll-note { display: none; }
+.retailer-orders { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr)); gap: .75rem; margin-top: 1rem; }
+.retailer-orders li { display: flex; align-items: start; justify-content: space-between; flex-wrap: wrap; gap: .45rem; padding: .9rem; background: #faf6fb; border: 1px solid var(--color-line); border-radius: .8rem; }
+.retailer-orders time { display: block; color: var(--muted); }
+.retailer-orders .command-reference { flex-basis: 100%; font-size: .9rem; }
+.retailer-steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .75rem; margin-bottom: 1rem; }
+.retailer-steps li { display: flex; align-items: start; gap: .6rem; padding: .75rem; border: 1px solid var(--color-line); border-radius: .8rem; background: white; font-weight: 650; }
+.retailer-steps span { flex: 0 0 1.65rem; text-align: center; border-radius: 50%; color: var(--purple-dark); background: var(--lavender); }
+.retailer-demo-note { margin-bottom: 1rem; padding: .85rem 1rem; border-radius: .75rem; background: #fbf1dd; color: #51350e; }
+.retailer-demo-note p { margin-top: .25rem; }
+.retailer-page .profit-inputs { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .85rem; }
+.retailer-page :is(.profit-ledger, .profit-results dt, .profit-advice p, .profit-advice ul, .profit-demo-controls p) { font-size: 1rem; }
+.retailer-page .profit-ledger dd { text-align: end; }
+.retailer-page .profit-autopsy-total { margin-block: .85rem .55rem; }
+.retailer-page .profit-autopsy-total dd { font-size: 1.25rem; }
+.retailer-page .profit-advice p + p, .retailer-page .profit-advice ul + p { margin-top: .55rem; }
+.retailer-result-word { display: block; font-size: .9rem; }
+.retailer-page .profit-field-source { font-size: .875rem; }
+.retailer-strategies { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr)); gap: .75rem; margin-top: 1rem; }
+.retailer-strategies li { display: flex; flex-direction: column; gap: .6rem; padding: .85rem; border-radius: .75rem; border: 1px solid var(--color-line); }
+.retailer-strategies h3 { color: var(--purple-dark); font-weight: 750; }
+.retailer-strategies dl { flex: 1; display: grid; gap: .4rem; }
+.retailer-strategies dl div { display: flex; justify-content: space-between; align-items: baseline; gap: .6rem; }
+.retailer-strategies dd { font-weight: 750; text-align: end; overflow-wrap: anywhere; }
+@media (max-width: 720px) {
+  .retailer-nav { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .retailer-scroll-note { display: block; margin-top: .65rem; color: var(--muted); }
+  .retailer-steps { grid-template-columns: minmax(0, 1fr); gap: .45rem; }
+}
+@media (max-width: 500px) {
+  .retailer-page :is(.retailer-summary, .profit-inputs, .profit-results) { grid-template-columns: minmax(0, 1fr); }
+  .retailer-summary .command-metric { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; }
+}

@@ -44,10 +44,10 @@ export function ProductProfitOS({ selection, drafts, onSelect, onEdit, onReset }
   return (
     <>
       <section className="command-panel profit-catalog" aria-labelledby="profit-catalog-heading">
-        <h2 id="profit-catalog-heading"><PackageSearch size={20} aria-hidden="true" /> Product catalog</h2>
+        <h2 id="profit-catalog-heading"><PackageSearch size={20} aria-hidden="true" /> Choose a Product</h2>
         <p>{isMockMode ? 'Mock catalog · Set VITE_API_BASE_URL to use live ShelfSync prices.' : 'ShelfSync catalog · Current selling prices by city'}</p>
         <div className="profit-catalog-fields">
-          <label className="filter-control">Catalog city
+          <label className="filter-control">City
             <select className="control" value={city} onChange={(event) => onSelect({ city: event.target.value as City, productId })}>
               {Object.entries(cities).map(([value, name]) => <option key={value} value={value}>{name}</option>)}
             </select>
@@ -88,7 +88,7 @@ export function ProductProfitOS({ selection, drafts, onSelect, onEdit, onReset }
           {defaults && (
             <div className="profit-demo-controls">
               <p><strong>Demo financial estimates — fictional costs generated for demonstration.</strong>
-                {' '}Catalog prices are read-only. Scenario edits stay in this browser tab until you leave ProfitOS.</p>
+                {' '}The selling price comes from the catalog. Changes to sample costs stay here until you leave My Earnings.</p>
               <button className="clear-filters" type="button" disabled={!editedFields.size}
                 onClick={() => onReset(selection)}>Reset to demo estimates</button>
             </div>

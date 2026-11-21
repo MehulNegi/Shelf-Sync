@@ -1,4 +1,4 @@
-import { ChartNoAxesCombined, Layers3 } from 'lucide-react'
+import { RetailerHeader } from '../components/admin/RetailerHeader'
 import { useEffect, useRef, useState } from 'react'
 import { OrderAutopsy } from '../components/profit-os/OrderAutopsy'
 import { ProfitLab } from '../components/profit-os/ProfitLab'
@@ -31,30 +31,26 @@ export function ProfitOS() {
 
   return (
     <>
-      <header className="site-header">
-        <nav className="shell history-nav" aria-label="ProfitOS navigation">
-          <a href="#top" className="brand">
-            <span className="brand-icon"><Layers3 size={22} aria-hidden="true" /></span>
-            ShelfSync
-          </a>
-          <a href="#/admin" className="orders-nav-link">Inventory Command Center</a>
-        </nav>
-      </header>
-      <main className="shell command-center profit-os">
-        <div className="command-intro profit-intro">
+      <RetailerHeader active="earnings" />
+      <main className="shell command-center retailer-page profit-os">
+        <div className="retailer-welcome">
           <div>
-            <span className="profit-title-icon"><ChartNoAxesCombined size={23} aria-hidden="true" /></span>
-            <h1 ref={heading} tabIndex={-1}>ProfitOS</h1>
-            <p>Smart Profit Advisor</p>
-          </div>
-          <div className="profit-demo">
-            <span className="command-state">{mode === 'demo' ? 'Demo assumptions' : 'Unsaved financial assumptions'}</span>
-            <p>{mode === 'demo' ? 'Read-only simulator using an illustrative sale.' : 'Product scenarios use catalog prices and fictional demo estimates.'} Changes apply only to this scenario.</p>
+            <h1 ref={heading} tabIndex={-1}>My Earnings</h1>
+            <p>Understand your profit</p>
           </div>
         </div>
-        <div className="profit-modes" role="group" aria-label="ProfitOS mode">
-          <button type="button" className="clear-filters" aria-pressed={mode === 'demo'} onClick={() => setMode('demo')}>Demo scenario</button>
-          <button type="button" className="clear-filters" aria-pressed={mode === 'product'} onClick={() => setMode('product')}>Analyze a product</button>
+        <ol className="retailer-steps" aria-label="How to estimate earnings">
+          <li><span aria-hidden="true">1</span> Choose a product</li>
+          <li><span aria-hidden="true">2</span> See how much money may be left after costs</li>
+          <li><span aria-hidden="true">3</span> Try changing your discount, delivery or other expenses</li>
+        </ol>
+        <aside className="retailer-demo-note" aria-label="About these estimates">
+          <strong>These are sample costs for demonstration. Replace them with your own numbers for a more useful estimate.</strong>
+          <p>Changes are temporary and apply only to this estimate.</p>
+        </aside>
+        <div className="profit-modes" role="group" aria-label="Choose what to estimate">
+          <button type="button" className="clear-filters" aria-pressed={mode === 'product'} onClick={() => setMode('product')}>Choose a product</button>
+          <button type="button" className="clear-filters" aria-pressed={mode === 'demo'} onClick={() => setMode('demo')}>Example sale</button>
         </div>
         {mode === 'demo' ? (
           <>

@@ -81,8 +81,8 @@ test('modeled advice gives feasible recovery targets and explains an insufficien
 
 test('page renders demo labels and suppresses misleading results for invalid inputs', () => {
   const html = renderToStaticMarkup(createElement(ProfitOS))
-  for (const word of ['Order Autopsy', 'Demo assumptions', 'Illustrative revenue', 'Modeled expenses',
-    'Loss Prevention Lab', 'Smart Profit Advisor', 'Estimated contribution', 'Strategy comparison', '−₹50', '+₹110', '17.5%']) {
+  for (const word of ['Where My Money Goes', 'sample costs for demonstration', 'Money coming in', 'Estimated costs',
+    'Try Different Prices', 'Suggestions for this sale', 'Estimated contribution', 'Ways to Earn More', '−₹50', '+₹110', '17.5%']) {
     assert(html.includes(word), word)
   }
   const invalid = renderToStaticMarkup(createElement(ProfitLab, {
@@ -140,7 +140,7 @@ test('unknown costs and unavailable prices do not produce an estimated contribut
   }))
   assert.match(markup, /Catalog selling price.*₹1,999.99/)
   assert.match(markup, /Estimated contribution<\/dt><dd>Unknown/)
-  assert.match(markup, /Acquisition<\/dt><dd>Unknown/)
+  assert.match(markup, /Cost to buy the product<\/dt><dd>Unknown/)
   assert.doesNotMatch(markup, /Demo assumptions/)
 })
 

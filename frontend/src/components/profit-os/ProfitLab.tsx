@@ -23,12 +23,13 @@ const baselineContribution = calculateScenario(baseline).contributionPaise
 function SmartAdvisor({ scenario }: { scenario: Scenario }) {
   const recommendation = advise(scenario)
   const { shortfallPaise, discount } = recommendation
+  const deliverySavings = scenario.courierPaise < 2000n ? scenario.courierPaise : 2000n
   return (
     <div className="profit-advice">
-      <h3><Lightbulb size={19} aria-hidden="true" /> Smart Profit Advisor</h3>
+      <h3><Lightbulb size={19} aria-hidden="true" /> Suggestions for this sale</h3>
       <p>{shortfallPaise > 0n
-        ? <>This scenario is {formatPaise(shortfallPaise)} short of break-even.</>
-        : <>This scenario covers its modeled expenses.</>}</p>
+        ? <>This scenario is {formatPaise(shortfallPaise)} short of covering its costs.</>
+        : <>This sale covers the costs you entered.</>}</p>
       <p>{discount.kind === 'not_applicable' ? 'A discount threshold needs a positive merchandise price.'
         : discount.kind === 'unreachable' ? 'Even a 0% discount leaves a loss at these costs and fees.'
           : <>Maximum discount without a loss is <strong>{formatDiscount(discount.rate)}</strong>.
@@ -39,7 +40,8 @@ function SmartAdvisor({ scenario }: { scenario: Scenario }) {
           ? <>Removing the entire courier cost still leaves a {formatPaise(recommendation.remainingLossWithoutCourierPaise)} loss.</>
           : <>Keeping the other inputs fixed, a courier cost of {formatPaise(recommendation.breakEvenCourierPaise)} breaks even.</>}</li>
       </ul>}
-      <p className="profit-caption">Rules compare the entered values. Demand and other expenses stay fixed.</p>
+      {deliverySavings > 0n && <p>Reducing delivery cost by {formatPaise(deliverySavings)} could leave {formatPaise(deliverySavings)} more per order, assuming everything else stays the same.</p>}
+      <p className="profit-caption">Break even means the sale covers its costs, with ₹0 left over.</p>
     </div>
   )
 }
@@ -51,13 +53,13 @@ export function ProfitLab(props: LabProps) {
   const result = scenario && calculateScenario(scenario)
   const margin = result && contributionMarginBps(result)
   const fields = catalog
-    ? [...labFields, ...expenseFields.map(({ name, label }) => ({ name, label: `${label} cost (₹)` }))]
+    ? [...labFields, ...expenseFields.map(({ name, label }) => ({ name, label: `${label} (₹)` }))]
     : labFields
 
   return (
     <section className="command-panel profit-lab" aria-labelledby="lab-heading">
-      <h2 id="lab-heading"><SlidersHorizontal size={20} aria-hidden="true" /> Loss Prevention Lab</h2>
-      <p>{catalog ? 'Unsaved financial assumptions per unit. Enter 0 only when you intend to model no expense.' : 'Change the assumptions to compare estimated outcomes.'}</p>
+      <h2 id="lab-heading"><SlidersHorizontal size={20} aria-hidden="true" /> Try Different Prices</h2>
+      <p>{catalog ? 'Try your own costs for one item. Enter 0 when you have no cost to include.' : 'Change the discount or delivery amounts to see what happens.'}</p>
       <div className="profit-inputs" role="group" aria-label="Scenario inputs">
         {fields.map(({ name, label }) => {
           const value = input[name]
@@ -88,18 +90,20 @@ export function ProfitLab(props: LabProps) {
       {scenario && result ? (
         <>
           <dl className="profit-results" aria-label="Scenario results">
-            <div><dt>Scenario revenue</dt><dd>{formatPaise(result.revenuePaise)}</dd></div>
-            <div><dt>Modeled expenses</dt><dd>{formatPaise(result.expensesPaise)}</dd></div>
+            <div><dt>Money coming in</dt><dd>{formatPaise(result.revenuePaise)}</dd></div>
+            <div><dt>Estimated costs</dt><dd>{formatPaise(result.expensesPaise)}</dd></div>
             <div className="profit-result-primary">
               <dt>Estimated contribution</dt>
               <dd data-sign={contributionTone(result.contributionPaise)} aria-live="polite">
-                {formatPaise(result.contributionPaise, true)}
+                {formatPaise(result.contributionPaise, true)} <span className="retailer-result-word">
+                  {result.contributionPaise < 0n ? 'Estimated loss' : result.contributionPaise > 0n ? 'Estimated gain' : 'Break even'}
+                </span>
               </dd>
             </div>
-            {catalog && <div><dt>Contribution margin</dt><dd data-sign={margin === null ? undefined : contributionTone(margin)}>
+            {catalog && <div><dt>Share of revenue left after costs</dt><dd data-sign={margin === null ? undefined : contributionTone(margin)}>
               {margin === null ? 'Unavailable' : formatDiscount(margin)}
             </dd></div>}
-            {!catalog && <div><dt>Change vs baseline</dt><dd data-sign={contributionTone(result.contributionPaise - baselineContribution)}>
+            {!catalog && <div><dt>Change from example sale</dt><dd data-sign={contributionTone(result.contributionPaise - baselineContribution)}>
               {formatPaise(result.contributionPaise - baselineContribution, true)}
             </dd></div>}
           </dl>
