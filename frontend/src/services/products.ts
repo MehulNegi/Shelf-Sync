@@ -1,6 +1,6 @@
 import { mockProduct, mockProducts } from '../mocks/products'
 import type { City, Product, ProductQuery, ProductsResponse } from '../types/products'
-import { baseUrl, isMockMode, requestJson } from './backend'
+import { isMockMode, requestJson } from './backend'
 
 export async function getProducts(query: ProductQuery, signal: AbortSignal): Promise<ProductsResponse> {
   if (isMockMode) return mockProducts(query)
@@ -18,10 +18,4 @@ export async function getProduct(id: string, city: City, signal: AbortSignal): P
   if (isMockMode) return mockProduct(id, city)
   return requestJson<Product>(`/products/${encodeURIComponent(id)}?${new URLSearchParams({ city })}`,
     200, { signal })
-}
-
-export function productImageUrl(imageUrl: string): string {
-  return baseUrl && imageUrl.startsWith('/') && !imageUrl.startsWith('//')
-    ? new URL(imageUrl, new URL(baseUrl, window.location.origin)).href
-    : imageUrl
 }

@@ -51,7 +51,7 @@
 .text-button { justify-self: start; min-height: 2.75rem; color: #492b91; font-size: .875rem; font-weight: 700; cursor: pointer; }
 .text-button:hover, footer a:hover { text-decoration: underline; }
 .product-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; }
-.product-image { display: grid; place-items: center; aspect-ratio: 16 / 10; background: #f0edf9; }
+.product-image { display: grid; grid-template: minmax(0, 1fr) / minmax(0, 1fr); place-items: center; overflow: hidden; aspect-ratio: 16 / 10; background: #f0edf9; }
 .product-image.apparel { background: #edf1fb; }
 .product-image.groceries { background: #faf1e5; }
 .product-image img { width: 68%; height: 85%; min-height: 0; object-fit: contain; }

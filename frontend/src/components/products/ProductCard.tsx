@@ -1,7 +1,8 @@
 import { Check, Laptop, Minus, Package, Shirt, ShoppingBasket, type LucideIcon } from 'lucide-react'
 import { useState } from 'react'
 import { formatPrice } from '../../lib/format-price'
-import { productImageUrl } from '../../services/products'
+import { baseUrl, isMockMode } from '../../services/backend'
+import { productImageCandidates } from '../../services/product-images'
 import { cities, type Product } from '../../types/products'
 import { Card } from '../ui/card'
 
@@ -18,17 +19,15 @@ interface ProductCardProps {
 }
 
 export function ProductCard({ product, quantity, onAdd, onDetails, showDescription }: ProductCardProps) {
-  const source = product.imageUrl.trim()
-  const imageUrl = source ? productImageUrl(source) : ''
+  const candidates = productImageCandidates(product, isMockMode ? undefined : baseUrl, window.location.origin)
   const PlaceholderIcon = categoryIcons.get(product.category) ?? Package
-  const localImage = source === '/images/speaker.jpg' ? '/images/speaker.webp' : source
   const [failedImages, setFailedImages] = useState<string[]>([])
-  const image = (localImage.startsWith('/images/') ? [imageUrl, localImage] : [imageUrl]).find((url) => url && !failedImages.includes(url))
+  const image = candidates.find((url) => !failedImages.includes(url))
   return (
     <Card className="overflow-hidden min-w-0">
       <div className={`product-image ${product.category}`}>
         {image
-          ? <img key={image} src={image} alt={product.name} width="300" height="300"
+          ? <img key={image} src={image} alt={product.name} width="300" height="300" decoding="async"
               onError={() => setFailedImages((urls) => [...urls, image])} />
           : <div className="image-placeholder">
               <span className="placeholder-icon"><PlaceholderIcon size={32} aria-hidden="true" /></span>
