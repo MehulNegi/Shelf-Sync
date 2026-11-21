@@ -39,7 +39,7 @@ Startup checks a real PostgreSQL connection before listening. Missing credential
 
 `npm run seed` upserts metadata for stable product IDs `prod_001` through `prod_012`. It inserts missing inventory rows for Pune, Delhi, and Bengaluru, preserving existing stock/version values. A fresh database has earphones stock of 1/8/3 respectively. It is safe to repeat, but does not reset inventory for a demo after checkout. Product prices are decimal INR rupees in PostgreSQL, serialized as JSON numbers (1999 means ₹1,999; 159.50 means ₹159.50).
 
-Schema includes products, versioned city inventory, orders, order items, and JSON outbox events. Checkout uses the existing schema; this sprint adds no migrations. Kafka publishing/consuming and OpenSearch are not implemented here.
+Schema includes products, versioned city inventory, orders, order items, and JSON outbox events. Checkout and the standalone Kafka outbox publisher use the existing schema; neither adds migrations. The OpenSearch consumer is not implemented here.
 
 ## Transactional checkout and outbox
 
@@ -64,9 +64,55 @@ Outbox rows use a UUID matching `payload.eventId`, `event_type=inventory.changed
 }
 ```
 
-`quantity` and `inventoryVersion` describe the resulting committed inventory, not a delta. `published_at` remains null for the next sprint's publisher. No external messages are sent by checkout. Inventory versions exceeding JSON's safe integer range fail and roll back instead of emitting a rounded version.
+`quantity` and `inventoryVersion` describe the resulting committed inventory, not a delta. `published_at` starts null and is set by the standalone publisher after Kafka acknowledges the event. No external messages are sent by checkout. Inventory versions exceeding JSON's safe integer range fail and roll back instead of emitting a rounded version.
 
 `GET /api/orders/:id` reads persisted orders/items and returns standard-format HTTP 404 for missing orders. Unit prices and totals are checkout snapshots; names come from the current product record. Each POST is a new purchase; request replay/idempotency is not part of the shared contract.
+
+## Aiven Kafka outbox publisher
+
+Copy the existing Aiven Kafka **Quick Connect** settings into `backend/.env`, using the same authentication method and its matching port. The template documents both SASL and client-certificate/mTLS modes. Do not change the service's authentication configuration or create new credentials just to use this worker. KafkaJS supports the required TLS/SASL client options; see [KafkaJS configuration](https://kafka.js.org/docs/configuration) and [Aiven authentication](https://aiven.io/docs/products/kafka/concepts/auth-types).
+
+Select/create `inventory-events` in Aiven Quick Connect and use a service user with topic write/describe access. The worker disables automatic topic creation. The live verification test additionally requires topic read and temporary consumer-group access. SASL and mTLS use different broker ports; copy the endpoint for the selected mode.
+
+| Variable | Purpose |
+| --- | --- |
+| `KAFKA_BROKERS` | Required comma-separated `host:port` values, without schemes or credentials. |
+| `KAFKA_AUTH_MODE` | Required `sasl` or `mtls`, matching existing Quick Connect settings. |
+| `KAFKA_CA_CERT_PATH` | Project CA PEM path. Omit only for a public CA already trusted by Node. Required for Aiven mTLS. |
+| `KAFKA_SASL_MECHANISM` | SASL only: `plain`, `scram-sha-256` (default), or `scram-sha-512`. |
+| `KAFKA_USERNAME`, `KAFKA_PASSWORD` | Required for SASL; existing service user credentials. |
+| `KAFKA_CLIENT_CERT_PATH`, `KAFKA_CLIENT_KEY_PATH` | Required for mTLS; existing service certificate and private key paths. |
+| `KAFKA_CLIENT_ID` | Defaults to `shelfsync-outbox`. |
+| `KAFKA_REQUEST_TIMEOUT_MS` | Connect/authentication/request/send timeout; default 10000, maximum 60000 ms. |
+| `OUTBOX_BATCH_SIZE` | Maximum events per poll; default 25, maximum 100. |
+| `OUTBOX_POLL_INTERVAL_MS` | Pause between polls; default 1000, maximum 60000 ms. |
+| `OUTBOX_RETRY_INITIAL_MS`, `OUTBOX_RETRY_MAX_MS` | Exponential backoff ceilings; defaults 1000/30000 ms, with 50–100% jitter. Maximum retry ceiling 300000 ms. |
+
+The worker also needs the existing PostgreSQL variables. Place certificate/key files under ignored `backend/certs/` and use paths relative to `backend/` or absolute paths. TLS certificate and hostname verification remain enabled in both modes; missing/invalid configuration fails with setup instructions. Neither credentials nor raw Kafka/PG errors are written to worker logs.
+
+Start from `backend/` after configuring `.env` and applying the foundation migration:
+
+```sh
+npm run build
+npm run worker:outbox
+```
+
+This is a separate process from the HTTP server. Each poll processes at most the configured batch size, one transaction per event. `SELECT ... FOR UPDATE SKIP LOCKED` claims only committed, unpublished rows. The lock remains held during the Kafka send; `acks=-1` requires all in-sync replicas to acknowledge before the worker updates `published_at` and commits. Concurrent workers skip locked rows. Kafka's internal retry count is finite (two); failures roll back, back off, and retry indefinitely across polls. Shutdown on SIGINT/SIGTERM interrupts the polling/backoff sleep, waits for the current send/transaction to settle, then disconnects Kafka and closes the pool. Allow time for the configured client timeouts and finite retries before force-stopping the process.
+
+Messages go to `inventory-events` with key `<productId>:<city>` and the existing JSON payload unchanged. Delivery is **at least once**: a crash or database failure after Kafka acknowledgement can cause the same `eventId` to be sent again. Unacknowledged events are never intentionally marked published. Multiple workers can publish versions out of order; the future consumer must deduplicate event IDs and reject stale inventory versions. A malformed/unsupported event remains pending and logs `invalid_event`; correct it after investigating rather than deleting or acknowledging it. An oldest failing event can delay later events on that worker. Structured logs include event IDs, batch counts, failure categories, and retry delays without exposing connection settings.
+
+Publisher tests:
+
+```sh
+npm test
+RUN_DB_TESTS=1 npm run test:integration
+# Only after Kafka Quick Connect and topic permissions are configured:
+RUN_KAFKA_TESTS=1 npm run test:kafka
+```
+
+The PostgreSQL outbox tests use isolated schemas and a Kafka transport double to verify discovery, row locking, failed-send retries, and duplicate publication after an acknowledged send followed by a database failure. Unit tests cover payloads, bounded polling, backoff, TLS configuration, and graceful shutdown. These do not establish live Kafka delivery.
+
+The opt-in live test performs a real checkout in an isolated PostgreSQL schema, publishes its committed event, and uses a temporary diagnostic Kafka reader to assert the matching event ID, payload, and key appear in `inventory-events`. It cleans up only its database schema and disconnects the reader; the test message remains in Kafka until normal topic retention removes it. It does not implement an OpenSearch consumer. `npm run test:kafka` reports a skip unless `RUN_KAFKA_TESTS=1`; an explicitly enabled test fails if configuration/authentication/delivery is unavailable.
 
 ## API integration
 
@@ -103,4 +149,4 @@ Integration tests create random isolated schemas in the configured database and 
 
 The checkout suite uses dedicated generated products and checks single/multi-item success, insufficient stock, strict quantity validation, duplicate IDs, decimal server-side totals, order retrieval, city availability, complete rollback when a later item fails, late database write failure, and event payloads. Ten independent last-unit races each launch two checkout requests with `Promise.all` and assert exactly one 201, one 409, stock zero, one confirmed order, and one committed event. A reversed multi-item cart race checks deterministic ordering. These concurrency assertions run against real PostgreSQL, never a mocked database. Use a dedicated test database where possible. An enabled suite fails on unavailable credentials/TLS/database errors instead of skipping. Default test output and integration output must be reported separately.
 
-Next task: publish committed outbox events to Kafka with retry handling, then apply versioned inventory updates to OpenSearch.
+Next task: apply published inventory events to OpenSearch with event deduplication and inventory-version checks.
