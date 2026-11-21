@@ -47,6 +47,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   }
   const port = Number(env.PORT ?? 3000);
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw new SetupError('PORT must be an integer from 1 to 65535.');
+  const poolMax = Number(env.DATABASE_POOL_MAX ?? 5);
+  if (!Number.isInteger(poolMax) || poolMax < 1 || poolMax > 10) throw new SetupError('DATABASE_POOL_MAX must be an integer from 1 to 10. Budget connections across API, workers and rolling deploys.');
   const frontendOrigin = env.FRONTEND_ORIGIN ?? 'http://localhost:5173';
   try {
     const origin = new URL(frontendOrigin);
@@ -60,7 +62,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     database: {
       connectionString: url.toString(),
       ssl: { rejectUnauthorized: true, ...(ca ? { ca } : {}) },
-      max: 5,
+      max: poolMax,
       connectionTimeoutMillis: 5000,
       idleTimeoutMillis: 30000,
       statement_timeout: 10000,
