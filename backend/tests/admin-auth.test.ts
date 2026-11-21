@@ -39,6 +39,12 @@ test('real signed JWT verification rejects invalid credentials before query vali
   t.after(() => app.close());
   const now = Math.floor(Date.now() / 1000);
   const other = await adminCredentials();
+  for (const endpoint of ['overview', 'inventory', 'orders', 'events']) {
+    const response = await app.inject(`/api/admin/${endpoint}`);
+    assert.equal(response.statusCode, 401);
+    assert.equal(response.json().error.code, 'UNAUTHENTICATED');
+    assert.equal(response.headers['www-authenticate'], 'Bearer');
+  }
   const tokens = ['', 'invalid', await credentials.token({ exp: now - 1 }), await credentials.token({ nbf: now + 60 }),
     await credentials.token({ iss: 'https://untrusted.example/' }), await credentials.token({ aud: 'wrong-audience' }),
     await credentials.token({ sub: '' }), await credentials.token({}, ['exp']), await credentials.token({ exp: now + 901 }),
