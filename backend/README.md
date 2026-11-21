@@ -2,6 +2,8 @@
 
 ProfitOS B8: see [implementation, policy gates and migration instructions](docs/profitability-implementation.md). The module defaults off; F14 remains frontend-only, and automatic checkout financial capture is deferred pending the C8.1 policy decisions.
 
+F15/B8.1: see [product/city integration readiness and the deployment checklist](docs/f15-backend-readiness.md). Verification uses isolated fixtures and does not activate persistent costs or apply shared migrations.
+
 Timed cart reservations: see [setup, rollout and recovery](docs/reservations.md). The module is disabled by default and implements shared contract section 10; frontend reservation integration is a separate task.
 
 Fastify 5, strict TypeScript, and PostgreSQL via `pg`. Use Node.js 22 or later (an active LTS release is recommended). Run all commands below from `backend/`.
