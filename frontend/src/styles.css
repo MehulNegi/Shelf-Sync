@@ -315,3 +315,95 @@ footer { background: #f5eef7; border-top: 1px solid var(--color-line); }
   .header-discovery .orders-nav-link { padding-inline: .35rem; }
   .header-discovery .orders-nav-link svg { display: none; }
 }
+
+.store-footer-links { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .45rem 1rem; }
+.command-center { padding-block: clamp(1.25rem, 4vw, 3rem) 3rem; }
+.command-intro {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: .8rem 1.1rem;
+  margin-bottom: 1.1rem;
+  padding: clamp(1.1rem, 3vw, 2.25rem);
+  border: 1px solid #e4d7ee;
+  border-radius: 1.4rem;
+  background: linear-gradient(115deg, #faf3f8, #eadcf4);
+}
+.command-intro h1 { font-family: var(--font-display); font-size: clamp(1.8rem, 5vw, 3.1rem); font-weight: 800; line-height: 1.05; letter-spacing: -.05em; }
+.command-intro p { margin-top: .55rem; color: var(--muted); }
+.command-state, .command-icon { display: inline-flex; align-items: center; gap: .4rem; color: var(--purple-dark); background: #f9effd; border-radius: .65rem; }
+.command-state { padding: .45rem .65rem; font-size: .875rem; font-weight: 650; }
+.command-icon { flex: 0 0 auto; justify-content: center; width: 2.55rem; height: 2.55rem; }
+.command-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: .75rem;
+  padding: .9rem 1rem;
+  margin-bottom: 1.1rem;
+  border: 1px solid #e5d8ed;
+  border-radius: var(--radius);
+  background: #fffdfb;
+}
+.command-notice h2, .command-panel h2 { font-size: 1.05rem; font-weight: 750; }
+.command-notice p, .command-panel p { color: var(--muted); margin-top: .25rem; }
+.command-metrics, .command-sections { display: grid; gap: .75rem; }
+.command-metrics { grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr)); margin-bottom: .85rem; }
+.command-sections { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.command-panel { padding: .9rem 1rem; border: 1px solid var(--color-line); border-radius: var(--radius); background: #fffdfb; }
+.command-metric { display: grid; align-content: start; gap: .3rem; }
+.command-metric svg, .command-panel h2 svg { color: var(--purple); flex-shrink: 0; }
+.command-metric dt { font-weight: 650; }
+.command-metric dd, .command-city dd { color: var(--muted); font-size: .875rem; }
+.command-panel h2 { display: flex; align-items: center; gap: .4rem; }
+.command-city dl { margin-top: .4rem; }
+.command-city dl div { display: flex; justify-content: space-between; flex-wrap: wrap; gap: .2rem .7rem; padding-block: .4rem; border-top: 1px solid var(--color-line); }
+.command-city dl div:first-child { border-top: 0; }
+
+@media (max-width: 38rem) {
+  .command-sections { grid-template-columns: minmax(0, 1fr); }
+}
+
+.command-refresh { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem 1rem; margin-bottom: .9rem; color: var(--muted); font-size: .875rem; }
+.command-refresh time { color: var(--ink); font-weight: 650; }
+.command-metric dd { color: var(--purple-dark); font-size: 1.65rem; font-weight: 750; font-variant-numeric: tabular-nums; }
+.command-metric-skeleton { min-height: 6rem; background: #f4ecf8; }
+.command-panel-heading { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: .35rem 1rem; }
+.command-panel-heading p { font-size: .85rem; }
+.command-bars { display: grid; gap: .35rem; }
+.command-city .command-bars > div { display: grid; grid-template-columns: minmax(5.25rem, auto) minmax(0, 1fr) minmax(5rem, auto); align-items: center; gap: .55rem; }
+.command-bars dd:last-child { text-align: end; font-variant-numeric: tabular-nums; }
+.command-bar-track { height: .65rem; overflow: hidden; border-radius: 1rem; background: var(--lavender); }
+.command-bar-track span { display: block; height: 100%; border-radius: inherit; background: #764ba0; }
+.command-inventory { margin-block: .85rem; }
+.command-filters { display: grid; grid-template-columns: 1fr 1.2fr 1fr minmax(5.4rem, .55fr) auto; align-items: end; gap: .65rem; margin-top: .85rem; }
+.command-search { width: min(100%, 20rem); margin-top: .85rem; }
+.command-table-wrap { overflow: auto; margin-top: .8rem; border: 1px solid var(--color-line); border-radius: .65rem; }
+.command-table { width: 100%; border-collapse: collapse; text-align: start; font-size: .875rem; }
+.command-table th, .command-table td { padding: .58rem .65rem; text-align: start; vertical-align: top; }
+.command-table thead { background: #f4edf8; }
+.command-table tbody tr + tr { border-top: 1px solid var(--color-line); }
+.command-table td { white-space: nowrap; }
+.command-table tbody th { min-width: 9rem; font-weight: 650; }
+.command-reference { font-family: var(--font-mono); overflow-wrap: anywhere; }
+.command-stock-badge { display: inline-block; border-radius: 1rem; background: var(--lavender); color: var(--purple-dark); padding: .15rem .5rem; font-weight: 650; font-size: .8125rem; }
+.command-stock-badge:is([data-status="in_stock"], [data-status="published"]) { background: #e8f3eb; color: #1d593c; }
+.command-stock-badge[data-status="out_of_stock"] { background: #f5e8eb; color: #823744; }
+.command-stock-badge:is([data-status="low_stock"], [data-status="pending"]) { background: #f9efd9; color: #684616; }
+.command-empty { padding-block: .7rem; }
+.command-pagination { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: .4rem .8rem; margin-top: .65rem; }
+.command-pagination > div { display: flex; gap: .4rem; }
+.command-sections > section { min-width: 0; }
+.command-events { display: grid; gap: .65rem; margin-top: .75rem; }
+.command-events li { border-inline-start: 2px solid #d8c5e6; padding-inline-start: .65rem; overflow-wrap: anywhere; }
+.command-event-heading, .command-event-meta { display: flex; flex-wrap: wrap; align-items: center; gap: .25rem .55rem; }
+.command-event-meta { font-size: .8125rem; color: var(--muted); margin-top: .2rem; }
+.command-table-skeleton { display: grid; gap: .5rem; margin-top: .75rem; }
+.command-table-skeleton span { height: 1.8rem; border-radius: .4rem; background: #f4ecf8; }
+
+@media (max-width: 55rem) {
+  .command-sections { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 41rem) {
+  .command-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

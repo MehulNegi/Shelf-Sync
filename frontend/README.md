@@ -44,3 +44,13 @@ npm run build
 Open **My Orders** to view purchases saved in this browser. Live mode stores order IDs only, scoped to the configured backend. The page fetches order details through `GET /api/orders/:id` and lists IDs in reverse checkout order. Mock orders use separate browser storage and are labeled as simulated.
 
 Live mode also fetches `GET /api/orders/:id/tracking` for each saved ID. Purchase dates come from `createdAt` and appear in the browser’s timezone. Dated orders sort newest first, with undated orders retaining their saved sequence afterward. The timeline uses persisted status and known `occurredAt` values. A legacy observation with an unknown occurrence time displays **Time unavailable**. If tracking can’t load, order details remain available and tracking can be retried independently. The backend currently supports `pending`, `confirmed`, and `cancelled`, so future fulfillment stages remain pending.
+
+## Inventory Command Center
+
+The storefront footer links to `#/admin`. For the local demo, run the backend in its authorized loopback-only mode on the same laptop, then start Vite from `frontend/`:
+
+```sh
+VITE_API_BASE_URL=http://127.0.0.1:3000/api npm run dev -- --host 127.0.0.1 --port 5173 --strictPort
+```
+
+Open `http://localhost:5173/#/admin`. The frontend origin must match the backend allowlist exactly. The dashboard reads the overview, inventory, orders, and events endpoints from section 9 of the [shared API contract](../contracts/api.md). It sends no credentials, refreshes every five seconds, and cancels requests when the dashboard closes. Inventory supports exact category, city, and stock-status filters plus cursor pagination. Product search searches the current inventory page. The event list reports only committed Kafka publication markers.
