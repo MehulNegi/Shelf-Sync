@@ -315,3 +315,51 @@ footer { background: #f5eef7; border-top: 1px solid var(--color-line); }
   .header-discovery .orders-nav-link { padding-inline: .35rem; }
   .header-discovery .orders-nav-link svg { display: none; }
 }
+
+.store-footer-links { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .45rem 1rem; }
+.command-center { padding-block: clamp(1.25rem, 4vw, 3rem) 3rem; }
+.command-intro {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: .8rem 1.1rem;
+  margin-bottom: 1.1rem;
+  padding: clamp(1.1rem, 3vw, 2.25rem);
+  border: 1px solid #e4d7ee;
+  border-radius: 1.4rem;
+  background: linear-gradient(115deg, #faf3f8, #eadcf4);
+}
+.command-intro h1 { font-family: var(--font-display); font-size: clamp(1.8rem, 5vw, 3.1rem); font-weight: 800; line-height: 1.05; letter-spacing: -.05em; }
+.command-intro p { margin-top: .55rem; color: var(--muted); }
+.command-state, .command-icon { display: inline-flex; align-items: center; gap: .4rem; color: var(--purple-dark); background: #f9effd; border-radius: .65rem; }
+.command-state { padding: .45rem .65rem; font-size: .875rem; font-weight: 650; }
+.command-icon { flex: 0 0 auto; justify-content: center; width: 2.55rem; height: 2.55rem; }
+.command-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: .75rem;
+  padding: .9rem 1rem;
+  margin-bottom: 1.1rem;
+  border: 1px solid #e5d8ed;
+  border-radius: var(--radius);
+  background: #fffdfb;
+}
+.command-notice h2, .command-panel h2 { font-size: 1.05rem; font-weight: 750; }
+.command-notice p, .command-panel p { color: var(--muted); margin-top: .25rem; }
+.command-metrics, .command-sections { display: grid; gap: .75rem; }
+.command-metrics { grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr)); margin-bottom: .85rem; }
+.command-sections { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.command-panel { padding: .9rem 1rem; border: 1px solid var(--color-line); border-radius: var(--radius); background: #fffdfb; }
+.command-metric { display: grid; align-content: start; gap: .3rem; }
+.command-metric svg, .command-panel h2 svg { color: var(--purple); flex-shrink: 0; }
+.command-metric dt { font-weight: 650; }
+.command-metric dd, .command-city dd { color: var(--muted); font-size: .875rem; }
+.command-panel h2 { display: flex; align-items: center; gap: .4rem; }
+.command-city dl { margin-top: .4rem; }
+.command-city dl div { display: flex; justify-content: space-between; flex-wrap: wrap; gap: .2rem .7rem; padding-block: .4rem; border-top: 1px solid var(--color-line); }
+.command-city dl div:first-child { border-top: 0; }
+
+@media (max-width: 38rem) {
+  .command-sections { grid-template-columns: minmax(0, 1fr); }
+}

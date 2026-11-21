@@ -44,3 +44,7 @@ npm run build
 Open **My Orders** to view purchases saved in this browser. Live mode stores order IDs only, scoped to the configured backend. The page fetches order details through `GET /api/orders/:id` and lists IDs in reverse checkout order. Mock orders use separate browser storage and are labeled as simulated.
 
 Live mode also fetches `GET /api/orders/:id/tracking` for each saved ID. Purchase dates come from `createdAt` and appear in the browser’s timezone. Dated orders sort newest first, with undated orders retaining their saved sequence afterward. The timeline uses persisted status and known `occurredAt` values. A legacy observation with an unknown occurrence time displays **Time unavailable**. If tracking can’t load, order details remain available and tracking can be retried independently. The backend currently supports `pending`, `confirmed`, and `cancelled`, so future fulfillment stages remain pending.
+
+## Inventory Command Center
+
+The storefront footer links to `#/admin`. This page indicates that admin access is unavailable and displays no operational data. Section 9 of the [shared API contract](../contracts/api.md#9-inventory-command-center--proposed-read-only-api) describes proposed endpoints. To connect the dashboard, the backend must implement the read-only endpoints and verify short-lived, trusted identity-provider tokens with the `inventory_admin` role. Token issuance is outside that contract. The current shell makes no admin requests and has no token entry or storage.

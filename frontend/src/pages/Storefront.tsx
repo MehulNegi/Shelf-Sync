@@ -163,7 +163,13 @@ export function Storefront() {
         </section>
       </main>
       <footer>
-        <div className="shell footer-inner"><strong>ShelfSync</strong><a href="#top">Back to top</a></div>
+        <div className="shell footer-inner">
+          <strong>ShelfSync</strong>
+          <nav className="store-footer-links" aria-label="Storefront footer navigation">
+            <a href="#/admin">Inventory Command Center</a>
+            <a href="#top">Back to top</a>
+          </nav>
+        </div>
       </footer>
       {dialog?.kind === 'product' && (
         <ProductDetails id={dialog.id} city={city} quantity={quantityOf(dialog.id)}

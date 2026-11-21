@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react'
+import { InventoryCommandCenter } from './pages/InventoryCommandCenter'
 import { MyOrders } from './pages/MyOrders'
 import { Storefront } from './pages/Storefront'
 
@@ -7,11 +8,13 @@ function subscribeToHash(onChange: () => void) {
   return () => window.removeEventListener('hashchange', onChange)
 }
 
-function isOrdersPage() {
-  return window.location.hash === '#/orders'
+function currentHash() {
+  return window.location.hash
 }
 
 export default function App() {
-  const showOrders = useSyncExternalStore(subscribeToHash, isOrdersPage)
-  return showOrders ? <MyOrders /> : <Storefront />
+  const hash = useSyncExternalStore(subscribeToHash, currentHash)
+  if (hash === '#/admin') return <InventoryCommandCenter />
+  if (hash === '#/orders') return <MyOrders />
+  return <Storefront />
 }
