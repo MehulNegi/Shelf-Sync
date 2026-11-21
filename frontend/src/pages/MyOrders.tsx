@@ -8,12 +8,19 @@ import { formatPrice } from '../lib/format-price'
 import { ApiError } from '../services/api-error'
 import { isMockMode } from '../services/backend'
 import { getOrderIds } from '../services/order-history'
-import { orderStatusLabel } from '../services/order-tracking'
+import { formatOrderDate, orderStatusLabel, sortOrderIds } from '../services/order-tracking'
 import { getOrder } from '../services/orders'
+import { getOrderTracking } from '../services/tracking-api'
 import { cities } from '../types/products'
 
-function OrderCard({ id }: { id: string }) {
+interface OrderCardProps {
+  id: string
+  onCreationDate: (id: string, createdAt: string) => void
+}
+
+function OrderCard({ id, onCreationDate }: OrderCardProps) {
   const [attempt, setAttempt] = useState(0)
+  const [trackingAttempt, setTrackingAttempt] = useState(0)
   const load = useCallback(async (signal: AbortSignal) => {
     try {
       return await getOrder(id, signal)
@@ -25,6 +32,17 @@ function OrderCard({ id }: { id: string }) {
   const result = useResource(load, attempt)
   const order = result && 'data' in result ? result.data : undefined
 
+  const loadTracking = useCallback(async (signal: AbortSignal) => (
+    isMockMode ? null : getOrderTracking(id, signal)
+  ), [id])
+  const trackingResult = useResource(loadTracking, trackingAttempt)
+  const tracking = trackingResult && 'data' in trackingResult ? trackingResult.data : undefined
+  const createdAt = tracking?.createdAt
+  const status = tracking?.status ?? order?.status
+
+  useEffect(() => {
+    if (createdAt) onCreationDate(id, createdAt)
+  }, [createdAt, id, onCreationDate])
   return (
     <Card className="history-card">
       <div className="history-card-header">
@@ -32,7 +50,7 @@ function OrderCard({ id }: { id: string }) {
           <p className="history-card-label">Order ID</p>
           <h2>{order?.id ?? id}</h2>
         </div>
-        {order && <span className="history-status" data-status={order.status}>{orderStatusLabel(order.status)}</span>}
+        {order && status && <span className="history-status" data-status={status}>{orderStatusLabel(status)}</span>}
       </div>
       {!result ? <p className="progress-note" role="status">Loading order…</p>
         : 'error' in result ? (
@@ -45,7 +63,11 @@ function OrderCard({ id }: { id: string }) {
           <>
             <dl className="history-summary">
               <div><dt>City</dt><dd>{cities[order.city]}</dd></div>
-              <div><dt>Purchase date</dt><dd>Unavailable</dd></div>
+              <div>
+                <dt>Purchase date</dt>
+                <dd>{createdAt ? <time dateTime={createdAt}>{formatOrderDate(createdAt)}</time>
+                  : !isMockMode && !trackingResult ? 'Loading…' : 'Unavailable'}</dd>
+              </div>
               <div><dt>Total</dt><dd>{formatPrice(order.total)}</dd></div>
             </dl>
             <p className="history-items-preview">{order.items.map((item) => `${item.name} × ${item.quantity}`).join(' · ')}</p>
@@ -54,7 +76,18 @@ function OrderCard({ id }: { id: string }) {
               <h3>Purchased products</h3>
               <OrderItems items={order.items} />
               <h3>Tracking</h3>
-              <OrderTracking status={order.status} />
+              {isMockMode ? <OrderTracking status={order.status} />
+                : tracking ? <OrderTracking status={tracking.status} history={tracking.history} />
+                : !trackingResult ? <p className="progress-note" role="status">Loading tracking…</p>
+                : (
+                  <div>
+                    {'error' in trackingResult
+                      ? <p role="alert">Couldn’t load tracking. {trackingResult.error}</p>
+                      : <p role="status">Tracking is unavailable for this order.</p>}
+                    <button type="button" className="text-button"
+                      onClick={() => setTrackingAttempt((value) => value + 1)}>Retry tracking</button>
+                  </div>
+                )}
             </details>
           </>
         )}
@@ -64,6 +97,11 @@ function OrderCard({ id }: { id: string }) {
 
 export function MyOrders() {
   const [ids] = useState(getOrderIds)
+  const [dates, setDates] = useState<ReadonlyMap<string, string>>(() => new Map())
+  const noteCreationDate = useCallback((id: string, createdAt: string) => {
+    setDates((previous) => previous.get(id) === createdAt ? previous : new Map(previous).set(id, createdAt))
+  }, [])
+  const sortedIds = sortOrderIds(ids, dates)
   const heading = useRef<HTMLHeadingElement>(null)
   useEffect(() => {
     window.scrollTo(0, 0)
@@ -89,7 +127,7 @@ export function MyOrders() {
         </div>
         {ids.length ? (
           <ul className="history-list" aria-label="Saved orders">
-            {ids.map((id) => <li key={id}><OrderCard id={id} /></li>)}
+            {sortedIds.map((id) => <li key={id}><OrderCard id={id} onCreationDate={noteCreationDate} /></li>)}
           </ul>
         ) : (
           <div className="state-panel history-empty">
