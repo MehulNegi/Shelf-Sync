@@ -1,4 +1,4 @@
-import type { OrderTrackingData, PersistedOrderStatus, TrackingEvent } from '../types/orders'
+import type { OrderStatus, OrderTrackingData, TrackingEvent } from '../types/orders'
 import { ApiError } from './api-error'
 import { requestJson } from './backend'
 
@@ -6,8 +6,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
 }
 
-function isStatus(value: unknown): value is PersistedOrderStatus {
-  return value === 'pending' || value === 'confirmed' || value === 'cancelled'
+function isStatus(value: unknown): value is OrderStatus {
+  return value === 'pending' || value === 'confirmed' || value === 'cancelled' ||
+    value === 'processing' || value === 'shipped' || value === 'delivered'
 }
 
 function isTimestamp(value: unknown): value is string {
@@ -19,7 +20,7 @@ function isTimestamp(value: unknown): value is string {
 function isTrackingEvent(value: unknown): value is TrackingEvent {
   return isRecord(value) && isStatus(value.status) &&
     (value.occurredAt === null || isTimestamp(value.occurredAt)) && isTimestamp(value.recordedAt) &&
-    (value.source === 'order_created' || value.source === 'legacy_snapshot')
+    typeof value.source === 'string' && value.source.trim() !== ''
 }
 
 function isTrackingData(value: unknown, id: string): value is OrderTrackingData {

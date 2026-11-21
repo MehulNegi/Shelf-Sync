@@ -77,7 +77,7 @@ function OrderCard({ id, onCreationDate }: OrderCardProps) {
               <OrderItems items={order.items} />
               <h3>Tracking</h3>
               {isMockMode ? <OrderTracking status={order.status} />
-                : tracking ? <OrderTracking status={tracking.status} history={tracking.history} />
+                : tracking ? <OrderTracking status={tracking.status} history={tracking.history} createdAt={tracking.createdAt} />
                 : !trackingResult ? <p className="progress-note" role="status">Loading tracking…</p>
                 : (
                   <div>

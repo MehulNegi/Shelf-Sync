@@ -30,15 +30,15 @@ export interface OrderDetails {
 export type PersistedOrderStatus = Extract<OrderStatus, 'pending' | 'confirmed' | 'cancelled'>
 
 export interface TrackingEvent {
-  status: PersistedOrderStatus
+  status: OrderStatus
   occurredAt: string | null
   recordedAt: string
-  source: 'order_created' | 'legacy_snapshot'
+  source: string
 }
 
 export interface OrderTrackingData {
   orderId: string
-  status: PersistedOrderStatus
+  status: OrderStatus
   createdAt: string
   history: TrackingEvent[]
 }

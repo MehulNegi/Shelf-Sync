@@ -1,11 +1,14 @@
 import assert from 'node:assert/strict'
 import { after, test } from 'node:test'
+import { createElement } from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
 import { createServer } from 'vite'
 
 process.env.VITE_API_BASE_URL = 'https://store.example/api'
 const vite = await createServer({ server: { middlewareMode: true, ws: false, watch: null } })
 const { getOrderTracking } = await vite.ssrLoadModule('/src/services/tracking-api.ts')
 const { formatOrderDate, orderTracking, sortOrderIds } = await vite.ssrLoadModule('/src/services/order-tracking.ts')
+const { OrderTracking } = await vite.ssrLoadModule('/src/components/orders/OrderTracking.tsx')
 after(() => vite.close())
 
 const createdAt = '2026-11-21T02:30:00.000Z'
@@ -80,7 +83,7 @@ test('missing tracking is recoverable and malformed payloads including mismatche
   for (const value of [
     null, {}, { ...tracking, orderId: 'ord_other' }, { ...tracking, createdAt: 'yesterday' },
     { ...tracking, createdAt: '2026-02-30T00:00:00.000Z' },
-    { ...tracking, status: 'delivered' }, { ...tracking, history: [{}] },
+    { ...tracking, status: 'in_transit' }, { ...tracking, history: [{}] },
     { ...tracking, history: [{ ...tracking.history[0], occurredAt: 'invalid' }] },
   ]) {
     fetch.mock.mockImplementation(async () => Response.json(value))
@@ -98,4 +101,63 @@ test('tracking failure can be retried without resubmitting checkout', async (t) 
   fetch.mock.mockImplementation(async () => Response.json(tracking))
   assert.deepEqual(await getOrderTracking(orderId, signal), tracking)
   assert.equal(fetch.mock.callCount(), 2)
+})
+
+
+test('demo milestones stay pending and use local calendar dates across a daylight-saving change', () => {
+  const previous = process.env.TZ
+  process.env.TZ = 'America/Los_Angeles'
+  try {
+    const purchase = '2026-03-08T02:00:00.000Z' // March 7 in Los Angeles
+    const stages = orderTracking('confirmed', tracking.history, purchase)
+    assert.deepEqual(stages.map(({ state }) => state), ['current', 'pending', 'pending', 'pending'])
+    const dates = [null, '2026-03-08T16:00:00.000Z', '2026-03-09T21:30:00.000Z', '2026-03-12T01:00:00.000Z']
+    assert.deepEqual(stages.map(({ demoEstimate }) => demoEstimate), dates)
+    assert.equal(stages[0].occurredAt, confirmedAt)
+    const html = renderToStaticMarkup(createElement(OrderTracking, {
+      status: 'confirmed', history: tracking.history, createdAt: purchase,
+    }))
+    assert.equal([...html.matchAll(/Demo estimate:/g)].length, 3)
+    assert.equal([...html.matchAll(/data-state="pending"/g)].length, 3)
+    for (const date of dates.slice(1)) {
+      assert(html.includes(date))
+      assert(html.includes(formatOrderDate(date)))
+    }
+  } finally {
+    if (previous === undefined) delete process.env.TZ
+    else process.env.TZ = previous
+  }
+})
+
+test('persisted fulfillment data overrides a demo estimate, including an unknown occurrence time', async (t) => {
+  const actual = '2026-11-23T18:21:00.000Z'
+  const persisted = {
+    ...tracking,
+    status: 'shipped',
+    history: [
+      ...tracking.history,
+      { status: 'processing', occurredAt: null, recordedAt: actual, source: 'legacy_snapshot' },
+      { status: 'shipped', occurredAt: actual, recordedAt: actual, source: 'fulfillment_update' },
+    ],
+  }
+  t.mock.method(globalThis, 'fetch', async () => Response.json(persisted))
+  const response = await getOrderTracking(orderId, signal)
+  const stages = orderTracking(response.status, response.history, response.createdAt)
+  assert.deepEqual(stages.map(({ state }) => state), ['completed', 'completed', 'current', 'pending'])
+  assert.equal(stages[1].demoEstimate, null)
+  assert.equal(stages[2].demoEstimate, null)
+  assert.equal(stages[2].occurredAt, actual)
+  assert(stages[3].demoEstimate)
+  const html = renderToStaticMarkup(createElement(OrderTracking, persisted))
+  assert.match(html, /Time unavailable/)
+  assert.match(html, new RegExp(actual))
+  assert.equal([...html.matchAll(/Demo estimate:/g)].length, 1)
+})
+
+test('missing or invalid purchase dates and cancelled orders produce no demo estimates', () => {
+  for (const value of [undefined, '', 'yesterday', '2026-02-30T00:00:00.000Z']) {
+    assert(orderTracking('confirmed', tracking.history, value).every((stage) => stage.demoEstimate === null))
+  }
+  assert(orderTracking('cancelled', tracking.history, createdAt).every((stage) => stage.demoEstimate === null))
+  assert.doesNotMatch(renderToStaticMarkup(createElement(OrderTracking, { status: 'confirmed' })), /Demo estimate/)
 })
