@@ -1,13 +1,16 @@
 import { ChevronDown, MapPin, PackageCheck, PackageSearch, RotateCcw } from 'lucide-react'
 import { useDeferredValue, useMemo, useState } from 'react'
+import { ReservationFeedback } from '../components/cart/ReservationFeedback'
 import { CartDialog } from '../components/cart/CartDialog'
 import { Header } from '../components/layout/Header'
 import { ProductCard } from '../components/products/ProductCard'
 import { ProductDetails } from '../components/products/ProductDetails'
 import { Input } from '../components/ui/input'
+import { useCartReservations } from '../hooks/use-cart-reservations'
 import { useCart } from '../hooks/use-cart'
 import { useProducts } from '../hooks/use-products'
 import { isMockMode } from '../services/backend'
+import { remainingSeconds } from '../services/reservations'
 import { categories, cities, type Product, type ProductQuery } from '../types/products'
 
 export function Storefront() {
@@ -21,6 +24,8 @@ export function Storefront() {
   const [min, setMin] = useState('')
   const [max, setMax] = useState('')
   const [attempt, setAttempt] = useState(0)
+  const reservations = useCartReservations(cart, dispatch, refreshCatalog)
+  const reservationLocked = reservations.enabled && Boolean(reservations.busy || reservations.pending)
 
   const hasFilters = Boolean(search || category || min || max)
   const q = useDeferredValue(search.trim())
@@ -43,6 +48,14 @@ export function Storefront() {
 
   function addProduct(product: Product) {
     if (!product.available) return
+    if (reservations.enabled) {
+      const quantity = quantityOf(product.id)
+      const hold = reservations.holds.find((row) => row.city === city && row.productId === product.id)
+      const target = remainingSeconds(hold, performance.now()) > 0 && hold
+        ? hold.quantity + 1 : Math.max(quantity, 1)
+      if (target <= 99) void reservations.changeQuantity(city, { productId: product.id, quantity: target }, true)
+      return
+    }
     dispatch({ type: 'adjust', city: product.city, productId: product.id, delta: 1, stock: product.stock })
   }
 
@@ -51,6 +64,7 @@ export function Storefront() {
   }
 
   function closeDialog() {
+    reservations.dismissOrder()
     setDialog(undefined)
   }
 
@@ -63,10 +77,14 @@ export function Storefront() {
 
   return (
     <>
-      <Header city={city} onCityChange={(selected) => dispatch({ type: 'selectCity', city: selected })}
+      <Header city={city} cityDisabled={reservationLocked} onCityChange={(selected) => {
+        if (reservations.enabled) void reservations.switchCity(selected)
+        else dispatch({ type: 'selectCity', city: selected })
+      }}
         cartCount={cartCount} onOpenCart={() => setDialog({ kind: 'cart' })}
         search={search} onSearchChange={setSearch} />
       <main className="shell">
+        {reservations.enabled && !dialog && <div className="reservation-notice"><ReservationFeedback reservations={reservations} /></div>}
         <section className="hero" aria-labelledby="store-heading">
           <div className="hero-copy">
             <p className="hero-city"><MapPin size={15} aria-hidden="true" /> Local inventory · {cities[city]}</p>
@@ -156,6 +174,8 @@ export function Storefront() {
             <div className="product-grid">
               {data.products.map((product) => (
                 <ProductCard key={product.id} product={product} quantity={quantityOf(product.id)} onAdd={addProduct}
+                  reservationMode={reservations.enabled} addDisabled={reservationLocked}
+                  reservationPending={reservations.workingProduct === product.id}
                   onDetails={() => setDialog({ kind: 'product', id: product.id })} />
               ))}
             </div>
@@ -171,12 +191,16 @@ export function Storefront() {
           </nav>
         </div>
       </footer>
-      {dialog?.kind === 'product' && (
+      {dialog?.kind === 'product' && !reservations.order && (
         <ProductDetails id={dialog.id} city={city} quantity={quantityOf(dialog.id)}
-          onAdd={addProduct} onClose={closeDialog} />
+          onAdd={addProduct} onClose={closeDialog}
+          stockRevision={reservations.enabled ? attempt : 0} reservationMode={reservations.enabled}
+          reservationPending={reservations.workingProduct === dialog.id} addDisabled={reservationLocked}
+          reservationFeedback={reservations.enabled && <ReservationFeedback reservations={reservations} />} />
       )}
-      {dialog?.kind === 'cart' && (
-        <CartDialog city={city} items={items}
+      {(dialog?.kind === 'cart' || reservations.order) && (
+        <CartDialog city={city} items={items} stockRevision={reservations.enabled ? attempt : 0}
+          reservations={reservations.enabled ? reservations : undefined}
           onAdjust={(productId, delta, stock) => dispatch({ type: 'adjust', city, productId, delta, stock })}
           onRemove={(productId) => dispatch({ type: 'remove', city, productId })}
           onPlaced={() => dispatch({ type: 'clear', city })}

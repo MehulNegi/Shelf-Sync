@@ -6,9 +6,11 @@ export interface CartState {
   itemsByCity: Record<City, OrderItem[]>
 }
 
-type CartAction =
+export type CartAction =
   | { type: 'selectCity'; city: City }
   | { type: 'adjust'; city: City; productId: string; delta: number; stock: number }
+  | { type: 'setQuantity'; city: City; productId: string; quantity: number }
+  | { type: 'purchase'; city: City; items: OrderItem[] }
   | { type: 'remove'; city: City; productId: string }
   | { type: 'clear'; city: City }
 
@@ -55,6 +57,14 @@ export function cartReducer(cart: CartState, action: CartAction): CartState {
   let items: OrderItem[]
   if (action.type === 'clear') {
     items = []
+  } else if (action.type === 'purchase') {
+    const purchased = new Map(action.items.map(({ productId, quantity }) => [productId, quantity]))
+    items = previous.map((item) => ({ ...item, quantity: item.quantity - (purchased.get(item.productId) ?? 0) }))
+      .filter((item) => item.quantity > 0)
+  } else if (action.type === 'setQuantity') {
+    items = previous.some((item) => item.productId === action.productId)
+      ? previous.map((item) => item.productId === action.productId ? { ...item, quantity: action.quantity } : item)
+      : [...previous, { productId: action.productId, quantity: action.quantity }]
   } else if (action.type === 'remove') {
     items = previous.filter((item) => item.productId !== action.productId)
   } else {
