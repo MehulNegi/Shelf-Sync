@@ -2,8 +2,10 @@ import { Check, Laptop, Minus, Package, Plus, Shirt, ShoppingBasket, type Lucide
 import { useState } from 'react'
 import { formatPrice } from '../../lib/format-price'
 import { baseUrl, isMockMode } from '../../services/backend'
+import type { ReservationDisplay } from '../../services/reservations'
 import { productImageCandidates } from '../../services/product-images'
 import { cities, type Product } from '../../types/products'
+import { ReservationCountdown } from '../cart/ReservationCountdown'
 import { Card } from '../ui/card'
 
 const categoryIcons = new Map<string, LucideIcon>([
@@ -18,10 +20,11 @@ interface ProductCardProps {
   showDescription?: boolean
   reservationMode?: boolean
   reservationPending?: boolean
+  reservation?: ReservationDisplay
   addDisabled?: boolean
 }
 
-export function ProductCard({ product, quantity, onAdd, onDetails, showDescription, reservationMode, reservationPending, addDisabled }: ProductCardProps) {
+export function ProductCard({ product, quantity, onAdd, onDetails, showDescription, reservationMode, reservationPending, reservation, addDisabled }: ProductCardProps) {
   const candidates = productImageCandidates(product, isMockMode ? undefined : baseUrl, window.location.origin)
   const PlaceholderIcon = categoryIcons.get(product.category) ?? Package
   const [failedImages, setFailedImages] = useState<string[]>([])
@@ -53,6 +56,8 @@ export function ProductCard({ product, quantity, onAdd, onDetails, showDescripti
           </span>
           <span className="stock-quantity">{product.stock} left in {cities[product.city]}</span>
         </div>
+        {reservation?.status === 'active' && <ReservationCountdown seconds={reservation.seconds} />}
+        {reservation?.status === 'expired' && <p className="reservation-expired">Reservation expired</p>}
         <div className="product-actions">
           <button type="button" className="primary-button" disabled={!canAdd}
             onClick={() => onAdd(product)} aria-label={`Add ${product.name} to cart`}>
