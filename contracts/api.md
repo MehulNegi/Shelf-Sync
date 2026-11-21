@@ -742,3 +742,166 @@ Plan these tests before enabling (none are claimed executed by this design):
 6. **Security and idempotency:** missing/foreign/expired cookies, guessed UUIDs, CSRF/Origin/Host failures, cookie flags, log redaction, rejected client TTL/price/user IDs, rate limits across two API instances, credentialed-CORS allowlist, same-key concurrent requests, body/key conflict, deterministic-error replay, lost checkout response, refusal of expired-session replays and session loss.
 7. **Real outbox/Kafka/OpenSearch:** each committed creation/update/release/expiry/checkout produces the correct full snapshot; rollback produces no allocation event. Verify eventual projections after the expiry worker resumes, duplicate/out-of-order version rejection, crash-after-ACK duplicates, retry/offset behavior, guarded bootstrap races and version-1-to-2 rollout. With workers unavailable, PostgreSQL-hydrated product availability remains correct; never claim live synchronization without live services.
 8. **Regression:** all existing checkout/10-last-unit races, product/filter responses, order details/tracking, admin authentication/local-demo restrictions and physical admin metrics continue passing. Run builds/unit/PostgreSQL integration suites and future reservation tests separately; report live services, skipped tests and migrations actually exercised.
+
+## 11. Retailer Profitability (C8) — Proposed
+
+This section defines a future admin-only feature. Existing routes, checkout requests and replies, stock reservations, and event schemas are unchanged. The [financial and migration design](../backend/docs/retailer-profitability.md) defines transaction, accounting, rollout, and verification rules.
+
+### 11.1 Access, dates, and common validation
+
+- Authorize before data access. Reuse the existing admin JWT gate over HTTPS with a signed `inventory_admin` role. Require a signed `profitability_write` role and a stable verified `sub` for cost writes. Fail closed if the profitability module or required authorization is unconfigured.
+- The existing explicitly enabled same-laptop, loopback-only admin demo may read profitability. Cost writes require a separate server-side opt-in, disabled by default, and an exact non-null allowlisted browser `Origin` even on loopback. Keep the existing peer, Host, Origin and forwarding restrictions. Production browser writes also require the exact allowlisted Origin. Only PUT accepts a body, with `Content-Type: application/json` and a 64 KiB maximum. CORS must explicitly allow `PUT` and `If-Match` and expose `ETag` to the configured frontend origin. Return `Cache-Control: no-store` on all responses. Public routes and inventory events never expose private costs.
+- Reporting endpoints require `from` (inclusive) and `to` (exclusive) as real `YYYY-MM-DD` business dates in `Asia/Kolkata`. Require `from < to` and at most 366 calendar days. Include confirmed sale cohorts by original order creation date and apply recorded adjustments visible within the response snapshot, even if recorded after `to`. `asOf` is the PostgreSQL observation time. Refunds therefore revise the original cohort when recorded.
+- Optional exact `city` is `pune`, `delhi`, or `bengaluru`; omission aggregates across cities. Overview and product list accept optional exact `productId`; detail uses the path ID only. Product IDs are nonblank, case-sensitive strings of at most 100 characters. Reject unknown/repeated query keys, unsupported values, extra body fields, and invalid dates with 400. An unknown filter product returns an empty cohort; a nonexistent path product returns 404.
+- Reporting responses are `INR` only. All paise and report margin basis-point values are canonical base-10 strings without a plus sign, redundant leading zero or decimal point. Derived values may be signed; cost-form input amounts are nonnegative, up to `"999999999999"` paise per unit. Counts are nonnegative safe JSON integers. Timestamps are ISO 8601 UTC with `Z` and millisecond precision. Use PostgreSQL exact arithmetic and TypeScript `bigint`; JSON numbers and JavaScript floating point are never authoritative monetary inputs or outputs.
+
+### 11.2 Shared response schemas
+
+Types below describe exact JSON objects. All keys are required unless explicitly marked optional.
+
+```ts
+type City = 'pune' | 'delhi' | 'bengaluru'
+type Minor = string
+type Quality = 'actual' | 'estimated' | 'mixed' | 'unknown'
+type Amount = { paise: Minor | null; quality: Quality }
+type Margin = { basisPoints: string | null; quality: Quality }
+type Metrics = {
+  grossSales: Amount
+  customerShipping: Amount
+  discounts: Amount
+  refunds: Amount
+  taxCollected: Amount
+  taxRefunded: Amount
+  netRevenue: Amount
+  costOfGoodsSold: Amount
+  fulfilmentExpenses: Amount
+  paymentFees: Amount
+  otherExpenses: Amount
+  allocatedOverhead: Amount
+  totalCost: Amount
+  contributionProfit: Amount
+  profitAfterOverhead: Amount
+  profitPerUnit: Amount
+  profitMargin: Margin
+}
+type CostBreakdown = {
+  procurement: Amount
+  retailerShipping: Amount
+  packaging: Amount
+  labour: Amount
+  paymentFees: Amount
+  nonRecoverableTaxes: Amount
+  allocatedOverhead: Amount
+}
+type Coverage = {
+  orderCount: number
+  lineCount: number
+  unitsSold: number
+  unitsReturned: number | null
+  netUnits: number | null
+  legacyLineCount: number
+  actualProfitLineCount: number
+  estimatedProfitLineCount: number
+  unknownProfitLineCount: number
+}
+type Summary = { metrics: Metrics; costs: CostBreakdown; coverage: Coverage }
+type Report = {
+  asOf: string
+  currency: 'INR'
+  from: string
+  to: string
+  timeZone: 'Asia/Kolkata'
+  city: City | null
+  productId: string | null
+}
+type TrendPoint = {
+  date: string
+  netRevenue: Amount
+  totalCost: Amount
+  profitAfterOverhead: Amount
+  orderCount: number
+}
+type ProductProfitability = Summary & {
+  productId: string
+  name: string
+  category: string
+  outcome: 'profitable' | 'loss' | 'break_even' | 'unknown' | 'no_sales'
+}
+```
+
+Each amount is null with `quality: "unknown"` when a required input is unknown. A computable line metric is actual if all inputs are actual, estimated if all are estimates, mixed if it combines actual and estimated inputs. Aggregate using the same rule across included lines. Unknown values are never silently excluded from aggregates. A mathematically undefined margin/per-unit ratio is null with unknown quality. The three profit line counts partition `lineCount`; the estimated count includes mixed lines. Legacy lines are an overlapping subset. Distinct order counts are scoped to each summary and cannot be summed across individual product rows. A valid empty cohort has actual zero additive totals, zero coverage, and null ratios. Outcome uses full included profit after overhead and its sign; an empty detail is `no_sales`.
+
+### 11.3 Read routes
+
+| Method and path | Query | Success |
+| --- | --- | --- |
+| `GET /api/admin/profitability/overview` | Required `from,to`; optional `city,productId` | 200 `{report: Report, summary: Summary, trend: TrendPoint[]}` |
+| `GET /api/admin/profitability/products` | Same filters plus optional `limit,cursor` | 200 `{report: Report, products: ProductProfitability[], page: {limit: number, nextCursor: string|null}}` |
+| `GET /api/admin/profitability/products/:productId` | Required `from,to`; optional `city` | 200 `{report: Report, product: ProductProfitability, byCity: {city: City, summary: Summary}[], trend: TrendPoint[]}` |
+
+Each response uses one consistent read-only PostgreSQL snapshot. Overview and detail trend contain one point for every business date in the requested interval, ascending, including empty days. Detail `byCity` uses Pune, Delhi, Bengaluru order and includes zero-sales cities, or the selected city only. List returns one aggregate per product with at least one included line, ordered by binary ascending `productId`. Reuse section 9.2 keyset rules: default limit 50, range 1–100, opaque cursor at most 2048 characters, bound to filters, sort, limit and authorization scope, 15-minute expiry, null when exhausted. Pages are live observations; there is no exact list count. Unknown amounts render as unavailable. Badges and trends use backend fields, including `outcome`, and do not recalculate totals or fill unknown gaps with zero.
+
+### 11.4 Cost profiles
+
+`GET /api/admin/products/:productId/costs` and `PUT /api/admin/products/:productId/costs` accept only optional `city`. Omit it for the global profile. The path product must exist. A city profile replaces the global profile as a whole, including its explicit unknowns. When no city version is effective, reporting uses the effective global version. The form must distinguish exact scope from fallback.
+
+```ts
+type PaymentCost =
+  | { method: 'per_unit'; paisePerUnit: Minor }
+  | { method: 'rate'; basisPoints: number }
+type CostInputs = {
+  procurementPaisePerUnit: Minor | null
+  retailerShippingPaisePerUnit: Minor | null
+  packagingPaisePerUnit: Minor | null
+  labourPaisePerUnit: Minor | null
+  paymentProcessing: PaymentCost | null
+  nonRecoverableTaxesPaisePerUnit: Minor | null
+  overheadPaisePerUnit: Minor | null
+}
+type CostWrite = {
+  currency: 'INR'
+  effectiveAt: string | null
+  costs: CostInputs
+}
+type CostProfile = {
+  productId: string
+  city: City | null
+  currency: 'INR'
+  version: number
+  effectiveAt: string
+  updatedAt: string
+  costs: CostInputs
+}
+type CostsResponse = {
+  productId: string
+  city: City | null
+  currency: 'INR'
+  latest: CostProfile | null
+  effective: CostProfile | null
+  inheritedEffective: CostProfile | null
+}
+```
+
+- GET returns 200 with the exact-scope head as `latest`, the version effective at observation time as `effective`, and `inheritedEffective` only when a city has no effective override and a global version is effective. Otherwise those slots are null. An existing product without any profile returns 200 with all three slots null. Both routes return a strong scope-bound `ETag` even for a never-configured scope.
+- PUT requires `If-Match` containing the single exact `ETag` from that scope’s most recent GET or PUT. No wildcard or weak validators. It appends a complete immutable version, returning 200 with the same response shape and a new tag. Missing header is 428; a stale or different-scope tag is 412 and the UI reloads before allowing a new save. A lost response is reconciled by GET rather than blindly appending another version.
+- In PUT, null `effectiveAt` uses the database write time. Explicit UTC timestamps must be at or after that time, and every version must be strictly later than the previous scope head. A conflicting schedule returns 409. Null cost components are unknown, and explicit zero is a recorded estimate of zero. Rates are integer basis points from 0–10,000. A payment setup uses exactly one method. All editable profile assumptions are estimates until replaced by independently recorded realized costs. `updatedAt` is the database time when that immutable version was recorded.
+
+### 11.5 Errors
+
+Use the standard error envelope in section 6. No raw financial rows, SQL, input bodies, or credential details in errors or application logs.
+
+| Status | Code | Meaning |
+| --- | --- | --- |
+| 400 | `VALIDATION_ERROR` | Invalid path, query, date range, headers or cost fields |
+| 400 | `INVALID_CURSOR` | Invalid, expired or incompatible pagination cursor |
+| 401 | `UNAUTHENTICATED` | Missing, invalid or expired admin identity when required |
+| 403 | `FORBIDDEN` | Missing role, disallowed Origin/peer, or demo cost writes disabled |
+| 404 | `PRODUCT_NOT_FOUND` | Path product does not exist |
+| 409 | `COST_EFFECTIVE_CONFLICT` | Proposed effective time conflicts with an existing version |
+| 412 | `COST_VERSION_CONFLICT` | Cost scope's latest version differs from `If-Match` |
+| 415 | `UNSUPPORTED_MEDIA_TYPE` | PUT body is not JSON |
+| 428 | `PRECONDITION_REQUIRED` | Missing `If-Match` on PUT |
+| 500 | `INTERNAL_ERROR` | Unexpected backend error |
+| 503 | `ADMIN_DISABLED` or `DATABASE_UNAVAILABLE` | Feature/access not configured or authoritative data unavailable |
+
+A protected PostgreSQL failure produces an error, never sample figures. Audit cost writes with product, scope, version and an authorized administrative actor reference. The local demo actor denotes the loopback demo, with no claim of individual user identity.
