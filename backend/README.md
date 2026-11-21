@@ -172,7 +172,7 @@ RUN_PIPELINE_TESTS=1 npm run test:pipeline
 
 Unit tests cover queries, fallback, TLS configuration, retries, offset handling, and shutdown. PostgreSQL integration tests cover real catalog reads using a projection double. The live search suite tests actual OpenSearch mappings, fuzzy HTTP queries, duplicate/old events, and stale-bootstrap protection. The live pipeline suite creates a temporary PostgreSQL schema, OpenSearch index, and Kafka group, performs a real checkout, publishes the committed event, and asserts both the projected stock/version and committed Kafka offset. It deletes only its own test index/schema; Kafka probe events/group metadata remain subject to normal retention. Probe product IDs start with `test_` and must not be treated as real demo catalog entries. Live suites skip unless explicitly enabled and fail if enabled with unavailable services.
 
-Latest local verification: the live OpenSearch suite passed all four checks. With the tracking migration enabled, checkout event `9ceec19e-8463-4d7a-b7cf-1ce709e90839` passed through the outbox and Aiven Kafka to OpenSearch (`inventoryVersion=2`, `stock=0`), with the consumer offset committed after processing. These checks used isolated test schemas, indexes, and consumer groups.
+Latest local verification: the live OpenSearch suite passed all four checks. With the Command Center APIs present, checkout event `eced0a84-f389-4519-bdfb-b1aed5bde945` passed through the outbox and Aiven Kafka to OpenSearch (`inventoryVersion=2`, `stock=0`), with the consumer offset committed after processing. These checks used isolated test schemas, indexes, and consumer groups.
 
 ## API integration
 
@@ -188,6 +188,45 @@ The shared contract in `../contracts/api.md` remains unchanged.
 City is required and accepts only `pune`, `delhi`, or `bengaluru`. Categories are matched exactly (seed uses `electronics`, `apparel`, `groceries`). Configured OpenSearch provides typo-tolerant name/description search; the PostgreSQL fallback provides case-insensitive literal substrings. Price bounds are inclusive, nonnegative INR values; inverted bounds return 400. Queries reject unknown keys, repeated scalar parameters, and excessively long text. Unknown categories and searches return empty results. Products remain visible even when selected-city stock is zero (`stock:0`, `available:false`). The catalog is unpaginated; `total` is the filtered product count.
 
 Set frontend `VITE_API_BASE_URL` to the backend `/api` URL and `FRONTEND_ORIGIN` to the frontend origin. Seed image URLs follow the contract's `/images/...` convention; the frontend must supply those assets. This backend does not serve image files.
+
+## Inventory Command Center
+
+The backend implements the four read-only schemas in shared contract section 9: `GET /api/admin/overview`, `/api/admin/inventory`, `/api/admin/orders`, and `/api/admin/events`. No admin mutation routes, login/token-issuance endpoints, or unrestricted storefront order list are added. Start with `npm run build` and `npm start` after configuring the server-side environment. No new migration is required.
+
+**Default: admin data is disabled.** With `ADMIN_AUTH_MODE` absent/`disabled`, or an incomplete/unsafe configuration, all four routes return standard-format HTTP 503 `ADMIN_DISABLED`. The storefront, checkout, tracking, outbox publisher, consumer, and search continue using their existing paths. Missing production identity-provider settings do not silently select a demonstration mode.
+
+| Variable | Purpose |
+| --- | --- |
+| `ADMIN_AUTH_MODE` | `disabled` (default), `jwt`, or explicitly opted-in `local-demo`. |
+| `ADMIN_CURSOR_SECRET` | Required in enabled modes: at least 32 cryptographically random bytes encoded as unpadded base64url. Keep it server-side, use the same value across API instances, and rotate it to invalidate outstanding cursors. See `.env.example` for a local generation command. |
+| `ADMIN_JWT_ISSUER` | Required in JWT mode: exact HTTPS issuer from the existing trusted identity provider. |
+| `ADMIN_JWT_AUDIENCE` | Required expected access-token audience. |
+| `ADMIN_JWT_JWKS_URL` | Required HTTPS URL of the provider's trusted public verification keys; never supplied by a request or JWT header. |
+| `ADMIN_JWT_ALGORITHMS` | Explicit allowlist: `RS256` (default), `ES256`, or both comma-separated. Symmetric algorithms and unsigned tokens are rejected. |
+| `ADMIN_HTTPS_PROXY_IPS` | Optional comma-separated exact socket-peer IPs of a trusted HTTPS reverse proxy, such as `127.0.0.1`. No wildcards or client-provided forwarding chains are trusted. |
+
+In deployed JWT mode, send the short-lived access token in `Authorization: Bearer <token>` over HTTPS. The backend uses `jose` to validate the signature, algorithm, issuer, audience, required expiration and any `nbf` claim, then requires a signed `roles` array containing `inventory_admin`. Tokens must have no more than 15 minutes remaining; when `iat` is present, their original lifetime must also be at most 15 minutes and the issue time cannot be in the future. The contract does not require `iat`/`sub`; subject-less credentials have their cursors bound to the exact signed token instead. Missing/invalid tokens return 401 with `WWW-Authenticate: Bearer`; valid identities without the role return 403. Raw tokens, claims, credentials and JWT/client errors are never logged or reflected in responses.
+
+The application currently serves HTTP behind the deployment's TLS terminator. JWT admin requests must arrive on a TLS socket or from an explicitly trusted `ADMIN_HTTPS_PROXY_IPS` peer with a single `X-Forwarded-Proto: https` value. Configure the proxy to overwrite that header and restrict direct backend access. A spoofed header from another IP is rejected. A public production frontend origin must be HTTPS; only loopback development can use HTTP. Requests with an Origin header must match `FRONTEND_ORIGIN`. CORS, path names and caller-supplied role headers do not grant access. All admin responses use `Cache-Control: no-store`. Never put admin tokens, cursor secrets, Aiven credentials or signing secrets in `VITE_*`, client bundles, URLs or browser persistent storage.
+
+If no trusted identity provider is available, the contract permits only an explicitly enabled **local demonstration**. Set these values in the ignored `backend/.env`, alongside a generated `ADMIN_CURSOR_SECRET`:
+
+```dotenv
+ADMIN_AUTH_MODE=local-demo
+HOST=127.0.0.1
+NODE_ENV=development
+FRONTEND_ORIGIN=http://localhost:5173
+```
+
+IPv6 `HOST=::1` is also supported. Public/wildcard bindings, non-loopback frontend origins, and production mode disable this configuration. Every request must have a real loopback socket peer and loopback Host; a provided browser Origin must exactly match the configured loopback frontend origin. Forwarded headers are rejected in demo mode. Do not expose it through tunnels, reverse proxies, LAN interfaces or the Internet. It is not admin authentication and must not be used for shared hosting.
+
+See [the local presentation runbook](docs/local-admin-demo.md) for exact backend/browser startup commands, safe credential handling, endpoint checks, second-laptop limitations and the existing JWT alternative. Local-demo activation does not require an authentication code change.
+
+All authorized reads use one checked-out PostgreSQL client in a `REPEATABLE READ READ ONLY` transaction per response. `asOf` comes from the database. Overview uses the fixed 1–5 low-stock range and an explicit `Asia/Kolkata` local-midnight window, independent of the PostgreSQL session timezone. Inventory counts/listing include only existing inventory rows. Orders return persisted status and INR totals. Events expose explicit stored associations only; current checkout events have `orderId:null`. A pending outbox marker does not prove Kafka never received the message, and a published marker does not imply consumer/OpenSearch completion. The endpoints never contact Kafka/OpenSearch or fabricate delivery/indexing state.
+
+Lists default to 50 records, accept limits 1–100, reject unknown/repeated/invalid filters, and use HMAC-protected 15-minute keyset cursors. Cursors bind the endpoint, filters, limit and verified authorization scope; timestamp keys preserve PostgreSQL microseconds. A changed filter/limit/scope, invalid signature, expiry, or incompatible cursor returns 400 `INVALID_CURSOR`. Separate pages are live snapshots. PostgreSQL connection/availability errors return 503 `DATABASE_UNAVAILABLE`; unexpected query failures return sanitized HTTP 500. Empty results retain the contract's HTTP 200 array/page shape.
+
+Verification: `npm test` covers real signed JWTs with generated test keys, rejection paths, deployment gates, cursors and validation. `RUN_DB_TESTS=1 npm run test:integration` exercises the authenticated routes against isolated Aiven PostgreSQL schemas, including timezone bounds, stock classes, filters, microsecond/tied-key pagination, event states, empty results, failures and unchanged operational data. It also runs the existing checkout races. No test grants public access or modifies demo inventory.
 
 ## Verification
 
@@ -212,4 +251,4 @@ The checkout suite uses dedicated generated products and checks single/multi-ite
 
 Tracking integration tests also exercise the migration against pre-existing orders, known/unknown timestamp semantics, chronological reads, disabled status changes, and rollback on history write failure. Last-unit races assert exactly one persisted confirmation-history record as well as one order/event.
 
-Next task: integrate the read-only tracking endpoint into the storefront and define an authorized fulfillment workflow before enabling real status transitions.
+Next task: configure the trusted production admin identity provider (or explicitly choose local-only demonstration), then integrate the Command Center UI using the shared schemas. Fulfillment mutations remain disabled until a separate authorized workflow is defined.

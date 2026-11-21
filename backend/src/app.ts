@@ -6,11 +6,14 @@ import { registerProductRoutes } from './routes/products.js';
 import { registerOrderRoutes, registerOrderTrackingRoutes } from './routes/orders.js';
 import { OrderService, OrderTrackingService } from './services/orders.js';
 import type { OrderRepository, OrderTrackingRepository } from './types/order.js';
+import { registerAdminRoutes } from './routes/admin.js';
+import type { AdminApi } from './services/admin.js';
 
 export interface AppOptions {
   products: ProductRepository;
   orders: OrderRepository;
   tracking?: OrderTrackingRepository;
+  admin?: AdminApi;
   frontendOrigin: string;
   logger?: boolean;
 }
@@ -46,5 +49,6 @@ export function buildApp(options: AppOptions) {
   registerProductRoutes(app, new ProductService(options.products));
   registerOrderRoutes(app, new OrderService(options.orders));
   if (options.tracking) registerOrderTrackingRoutes(app, new OrderTrackingService(options.tracking));
+  registerAdminRoutes(app, options.admin);
   return app;
 }
