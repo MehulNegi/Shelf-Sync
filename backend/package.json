@@ -11,14 +11,19 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/src/server.js",
     "worker:outbox": "node dist/workers/outbox-publisher.js",
+    "index:products": "node dist/workers/index-products.js",
+    "worker:inventory": "node dist/workers/inventory-consumer.js",
     "migrate": "tsx src/db/migrate.ts",
     "seed": "tsx src/db/seed.ts",
     "test": "tsx --test tests/*.test.ts",
     "test:integration": "tsx --test tests/integration/*.test.ts",
-    "test:kafka": "tsx --test tests/live/*.test.ts"
+    "test:kafka": "tsx --test tests/live/kafka.test.ts",
+    "test:search": "tsx --test tests/live/search.test.ts",
+    "test:pipeline": "tsx --test tests/live/pipeline.test.ts"
   },
   "dependencies": {
     "@fastify/cors": "^11.0.0",
+    "@opensearch-project/opensearch": "^3.10.0",
     "dotenv": "^17.0.0",
     "fastify": "^5.12.8",
     "kafkajs": "^2.2.4",
