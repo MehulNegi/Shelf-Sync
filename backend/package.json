@@ -26,6 +26,7 @@
     "@opensearch-project/opensearch": "^3.10.0",
     "dotenv": "^17.0.0",
     "fastify": "^5.12.8",
+    "jose": "^6.2.18",
     "kafkajs": "^2.2.4",
     "pg": "^8.16.0"
   },

@@ -6,6 +6,8 @@ import { PgOrderRepository } from './repositories/orders.js';
 import { createOpenSearchClient, loadOpenSearchConfig } from './config/opensearch.js';
 import { SearchProjection } from './services/search-projection.js';
 import { SearchProductRepository } from './repositories/search-products.js';
+import { loadAdminConfig } from './config/admin.js';
+import { createAdminApi } from './services/admin.js';
 
 async function start() {
   const config = loadConfig();
@@ -18,7 +20,10 @@ async function start() {
       () => console.warn('OpenSearch search failed; using PostgreSQL substring search.')) : postgres;
   if (!searchClient) console.warn('OPENSEARCH_URL is unset; product search uses PostgreSQL substring matching.');
   const orders = new PgOrderRepository(pool);
-  const app = buildApp({ products, orders, tracking: orders, frontendOrigin: config.frontendOrigin, logger: true });
+  const adminConfig = loadAdminConfig(config);
+  const admin = createAdminApi(pool, adminConfig);
+  if (adminConfig.mode === 'disabled') console.info(adminConfig.setupIssue ?? 'Admin API is disabled by default.');
+  const app = buildApp({ products, orders, tracking: orders, ...(admin ? { admin } : {}), frontendOrigin: config.frontendOrigin, logger: true });
   app.addHook('onClose', async () => { try { await searchClient?.close(); } finally { await pool.end(); } });
   try {
     await pool.query('SELECT 1');
