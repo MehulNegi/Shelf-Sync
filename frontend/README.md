@@ -47,4 +47,10 @@ Live mode also fetches `GET /api/orders/:id/tracking` for each saved ID. Purchas
 
 ## Inventory Command Center
 
-The storefront footer links to `#/admin`. This page indicates that admin access is unavailable and displays no operational data. Section 9 of the [shared API contract](../contracts/api.md#9-inventory-command-center--proposed-read-only-api) describes proposed endpoints. To connect the dashboard, the backend must implement the read-only endpoints and verify short-lived, trusted identity-provider tokens with the `inventory_admin` role. Token issuance is outside that contract. The current shell makes no admin requests and has no token entry or storage.
+The storefront footer links to `#/admin`. For the local demo, run the backend in its authorized loopback-only mode on the same laptop, then start Vite from `frontend/`:
+
+```sh
+VITE_API_BASE_URL=http://127.0.0.1:3000/api npm run dev -- --host 127.0.0.1 --port 5173 --strictPort
+```
+
+Open `http://localhost:5173/#/admin`. The frontend origin must match the backend allowlist exactly. The dashboard reads the overview, inventory, orders, and events endpoints from section 9 of the [shared API contract](../contracts/api.md). It sends no credentials, refreshes every five seconds, and cancels requests when the dashboard closes. Inventory supports exact category, city, and stock-status filters plus cursor pagination. Product search searches the current inventory page. The event list reports only committed Kafka publication markers.
