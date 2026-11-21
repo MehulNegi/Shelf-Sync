@@ -32,12 +32,12 @@ export function parseHundredths(value: string): bigint | null {
   return BigInt(match[1]) * 100n + BigInt((match[2] ?? '').padEnd(2, '0'))
 }
 
-function roundedDiscount(price: bigint, rate: bigint) {
+export function applyBasisPoints(price: bigint, rate: bigint) {
   return (price * rate + fullRate / 2n) / fullRate
 }
 
 export function calculateMerchandise(price: bigint, rate: bigint) {
-  const discountPaise = roundedDiscount(price, rate)
+  const discountPaise = applyBasisPoints(price, rate)
   return { discountPaise, discountedMerchandisePaise: price - discountPaise }
 }
 
@@ -62,7 +62,7 @@ export function breakEvenDiscount(scenario: Scenario) {
   // Invert round-half-up exactly. The last acceptable numerator is strictly below the next paise.
   const maxRate = (allowance * fullRate + fullRate / 2n - 1n) / merchandisePaise
   const rate = maxRate < fullRate ? maxRate : fullRate
-  return { kind: 'available', rate, contributionPaise: allowance - roundedDiscount(merchandisePaise, rate) } as const
+  return { kind: 'available', rate, contributionPaise: allowance - applyBasisPoints(merchandisePaise, rate) } as const
 }
 
 export function advise(scenario: Scenario) {
@@ -92,7 +92,15 @@ export function formatPaise(amount: bigint, signed = false) {
 }
 
 export function formatDiscount(rate: bigint) {
-  return `${rate / 100n}${decimalPart(rate)}%`
+  const magnitude = rate < 0n ? -rate : rate
+  return `${rate < 0n ? '−' : ''}${magnitude / 100n}${decimalPart(magnitude)}%`
+}
+
+export function contributionMarginBps({ contributionPaise, revenuePaise }: ReturnType<typeof calculateScenario>) {
+  if (revenuePaise <= 0n) return null
+  const magnitude = contributionPaise < 0n ? -contributionPaise : contributionPaise
+  const rounded = (magnitude * fullRate + revenuePaise / 2n) / revenuePaise
+  return contributionPaise < 0n ? -rounded : rounded
 }
 
 export function displayInput(amount: bigint) {

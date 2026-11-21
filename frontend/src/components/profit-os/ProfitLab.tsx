@@ -1,7 +1,7 @@
 import { Lightbulb, SlidersHorizontal } from 'lucide-react'
 import { Input } from '../ui/input'
 import {
-  advise, baseline, calculateScenario, completeScenario, contributionTone, expenseFields,
+  advise, baseline, calculateScenario, completeScenario, contributionMarginBps, contributionTone, expenseFields,
   formatDiscount, formatPaise, labFields, parseHundredths, parseRate, toInputs,
   type ProductInputs, type Scenario, type ScenarioInputs,
 } from '../../lib/profit-os'
@@ -12,6 +12,7 @@ type LabProps =
       input: ProductInputs
       scenario: Scenario | null
       hasPrice: boolean
+      editedFields: ReadonlySet<string>
       onChange: (field: keyof ProductInputs, value: string) => void
     } }
 
@@ -48,6 +49,7 @@ export function ProfitLab(props: LabProps) {
   const input = props.catalog ? props.catalog.input : { ...baselineInputs, ...props.inputs }
   const scenario = catalog ? catalog.scenario : completeScenario(baseline.merchandisePaise, input)
   const result = scenario && calculateScenario(scenario)
+  const margin = result && contributionMarginBps(result)
   const fields = catalog
     ? [...labFields, ...expenseFields.map(({ name, label }) => ({ name, label: `${label} cost (₹)` }))]
     : labFields
@@ -64,10 +66,16 @@ export function ProfitLab(props: LabProps) {
             : 'Enter a non-negative amount with up to two decimal places.'
           return (
             <label className="filter-control" key={name}>
-              {label}
+              <span className="profit-field-label"><span id={`profit-${name}-label`}>{label}</span>{catalog?.hasPrice && (
+                <span id={`profit-${name}-source`} className="profit-field-source">
+                  {catalog.editedFields.has(name) ? 'Your edit' : 'Demo estimate'}
+                </span>
+              )}</span>
               <Input id={`profit-${name}`} inputMode="decimal" maxLength={15} value={value}
-                placeholder={catalog ? 'Unknown' : undefined} aria-invalid={invalid}
-                aria-describedby={invalid ? `profit-${name}-error` : undefined}
+                placeholder={catalog ? 'Unknown' : undefined} aria-invalid={invalid} aria-labelledby={`profit-${name}-label`}
+                aria-describedby={[
+                  catalog?.hasPrice && `profit-${name}-source`, invalid && `profit-${name}-error`,
+                ].filter(Boolean).join(' ') || undefined}
                 onChange={(event) => {
                   if (props.catalog) props.catalog.onChange(name, event.target.value)
                   else if (name === 'discount' || name === 'courier' || name === 'deliveryFee') props.onChange(name, event.target.value)
@@ -88,6 +96,9 @@ export function ProfitLab(props: LabProps) {
                 {formatPaise(result.contributionPaise, true)}
               </dd>
             </div>
+            {catalog && <div><dt>Contribution margin</dt><dd data-sign={margin === null ? undefined : contributionTone(margin)}>
+              {margin === null ? 'Unavailable' : formatDiscount(margin)}
+            </dd></div>}
             {!catalog && <div><dt>Change vs baseline</dt><dd data-sign={contributionTone(result.contributionPaise - baselineContribution)}>
               {formatPaise(result.contributionPaise - baselineContribution, true)}
             </dd></div>}

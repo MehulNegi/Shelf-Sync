@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { readFile } from 'node:fs/promises'
 import { after, test } from 'node:test'
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
@@ -7,12 +8,15 @@ import { createServer } from 'vite'
 const vite = await createServer({ server: { middlewareMode: true, ws: false, watch: null } })
 const {
   baseline, calculateScenario, breakEvenDiscount, advise, parseHundredths, formatPaise, formatDiscount, strategies,
-  catalogPricePaise, completeScenario, emptyProductInputs, productStrategies,
+  catalogPricePaise, completeScenario, contributionMarginBps, emptyProductInputs, productStrategies,
 } = await vite.ssrLoadModule('/src/lib/profit-os.ts')
 const { ProfitOS } = await vite.ssrLoadModule('/src/pages/ProfitOS.tsx')
 const { ProfitLab } = await vite.ssrLoadModule('/src/components/profit-os/ProfitLab.tsx')
-const { productDraft, updateProductDraft } = await vite.ssrLoadModule('/src/lib/profit-os-drafts.ts')
+const { editedProductFields, productDraft, resetProductDraft, updateProductDraft } = await vite.ssrLoadModule('/src/lib/profit-os-drafts.ts')
 const { OrderAutopsy } = await vite.ssrLoadModule('/src/components/profit-os/OrderAutopsy.tsx')
+const { demoProductInputs } = await vite.ssrLoadModule('/src/lib/profit-os-demo.ts')
+const { mockProducts } = await vite.ssrLoadModule('/src/mocks/products.ts')
+const seeds = JSON.parse(await readFile(new URL('../../backend/database/seed/products.json', import.meta.url), 'utf8'))
 after(() => vite.close())
 
 test('the illustrative autopsy balances in integer paise and all strategies match the specification', () => {
@@ -138,4 +142,80 @@ test('unknown costs and unavailable prices do not produce an estimated contribut
   assert.match(markup, /Estimated contribution<\/dt><dd>Unknown/)
   assert.match(markup, /Acquisition<\/dt><dd>Unknown/)
   assert.doesNotMatch(markup, /Demo assumptions/)
+})
+
+
+const cities = ['pune', 'delhi', 'bengaluru']
+
+test('every seeded, mock, and unknown-category product with a valid price receives nine usable values', () => {
+  for (const city of cities) {
+    const products = [
+      ...seeds.map((product) => ({ ...product, city })),
+      ...mockProducts({ city }).products,
+      { id: 'new-product', price: 123.45, city },
+    ]
+    for (const product of products) {
+      const price = catalogPricePaise(product.price)
+      const defaults = demoProductInputs(product, price)
+      assert.deepEqual(Object.keys(defaults).sort(), Object.keys(emptyProductInputs).sort())
+      assert(Object.values(defaults).every((value) => parseHundredths(value) !== null))
+      const scenario = completeScenario(price, defaults)
+      assert(scenario)
+      assert(Object.values(calculateScenario(scenario)).every((value) => typeof value === 'bigint'))
+    }
+  }
+})
+
+test('demo costs are deterministic yet vary with product identity, category, price and city', () => {
+  const product = { id: 'same-id', category: 'electronics', city: 'pune' }
+  const price = 200_000n
+  const original = demoProductInputs(product, price)
+  assert.deepEqual(demoProductInputs({ ...product }, price), original)
+  assert.notDeepEqual(demoProductInputs({ ...product, id: 'another-id' }, price), original)
+  const apparel = demoProductInputs({ ...product, category: 'Clothing' }, price)
+  const accessories = demoProductInputs({ ...product, category: 'accessories' }, price)
+  assert(parseHundredths(original.acquisition) > parseHundredths(apparel.acquisition))
+  assert(parseHundredths(accessories.courier) < parseHundredths(apparel.courier))
+  assert(parseHundredths(accessories.packaging) < parseHundredths(apparel.packaging))
+  const delhi = demoProductInputs({ ...product, city: 'delhi' }, price)
+  assert.equal(parseHundredths(delhi.courier) - parseHundredths(original.courier), 900n)
+  assert.notEqual(delhi.deliveryFee, original.deliveryFee)
+  assert.notEqual(demoProductInputs(product, price * 2n).acquisition, original.acquisition)
+  for (const invalid of [undefined, null, NaN, -1, 1.234]) {
+    assert.equal(demoProductInputs(product, catalogPricePaise(invalid)), undefined)
+  }
+})
+
+test('edited fields overlay demo defaults and reset affects only the selected product and city', () => {
+  const product = { id: 'earbuds', city: 'pune', category: 'electronics' }
+  const defaults = demoProductInputs(product, 199_900n)
+  let drafts = updateProductDraft(new Map(), 'pune', product.id, { courier: '120.51', labour: '' })
+  drafts = updateProductDraft(drafts, 'delhi', product.id, { courier: '81.11' })
+  drafts = updateProductDraft(drafts, 'pune', 'jacket', { courier: '55' })
+  const edited = productDraft(drafts, 'pune', product.id, defaults)
+  assert.deepEqual(edited, { ...defaults, courier: '120.51', labour: '' })
+  assert.equal(completeScenario(199_900n, edited), null)
+  assert.deepEqual([...editedProductFields(drafts, 'pune', product.id)], ['courier', 'labour'])
+  const reset = resetProductDraft(drafts, 'pune', product.id)
+  assert.deepEqual(productDraft(reset, 'pune', product.id, defaults), defaults)
+  assert.equal(editedProductFields(reset, 'pune', product.id).size, 0)
+  assert.equal(productDraft(reset, 'delhi', product.id, defaults).courier, '81.11')
+  assert.equal(productDraft(reset, 'pune', 'jacket', defaults).courier, '55')
+})
+
+test('fictional defaults produce positive and negative contributions, with exact signed margins', () => {
+  const modeled = seeds.map((product) => {
+    const price = catalogPricePaise(product.price)
+    return calculateScenario(completeScenario(price, demoProductInputs({ ...product, city: 'pune' }, price)))
+  })
+  assert.deepEqual(modeled[0], {
+    discountPaise: 14993n, discountedMerchandisePaise: 184907n, revenuePaise: 188407n,
+    expensesPaise: 169821n, contributionPaise: 18586n,
+  })
+  assert.equal(contributionMarginBps(modeled[0]), 986n)
+  assert(modeled.some((result) => result.contributionPaise < 0n && contributionMarginBps(result) < 0n))
+  assert.equal(contributionMarginBps({ contributionPaise: 1n, revenuePaise: 20000n }), 1n)
+  assert.equal(contributionMarginBps({ contributionPaise: -1n, revenuePaise: 20000n }), -1n)
+  assert.equal(contributionMarginBps({ contributionPaise: -1n, revenuePaise: 0n }), null)
+  assert.equal(formatDiscount(-1n), '−0.01%')
 })

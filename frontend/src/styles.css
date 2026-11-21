@@ -472,3 +472,8 @@ footer { background: #f5eef7; border-top: 1px solid var(--color-line); }
 @media (max-width: 34rem) {
   .profit-catalog-fields { grid-template-columns: minmax(0, 1fr); }
 }
+
+.profit-demo-controls { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem 1rem; margin-bottom: .85rem; padding: .75rem .9rem; border: 1px solid var(--color-line); border-radius: .7rem; background: #f5eef8; }
+.profit-demo-controls p { flex: 1 1 24rem; font-size: .875rem; color: var(--purple-dark); }
+.profit-field-label { display: flex; flex-direction: column; justify-content: flex-end; }
+.profit-field-source { color: var(--muted); font-size: .75rem; font-weight: 500; }
