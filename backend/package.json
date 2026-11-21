@@ -20,7 +20,9 @@
     "test:integration": "tsx --test --test-concurrency=1 tests/integration/*.test.ts",
     "test:kafka": "tsx --test tests/live/kafka.test.ts",
     "test:search": "tsx --test tests/live/search.test.ts",
-    "test:pipeline": "tsx --test tests/live/pipeline.test.ts"
+    "test:pipeline": "tsx --test tests/live/pipeline.test.ts",
+    "predev:all": "npm run build",
+    "dev:all": "concurrently --kill-others -n API,OUTBOX,INVENTORY,RESERVATIONS \"npm run dev\" \"npm run worker:outbox\" \"npm run worker:inventory\" \"npm run worker:reservations\""
   },
   "dependencies": {
     "@fastify/cors": "^11.0.0",
@@ -34,6 +36,7 @@
   "devDependencies": {
     "@types/node": "^22.0.0",
     "@types/pg": "^8.15.0",
+    "concurrently": "^10.0.7",
     "tsx": "^4.20.0",
     "typescript": "~5.9.0"
   }

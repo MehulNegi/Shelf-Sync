@@ -1,0 +1,23 @@
+{
+  "name": "shelf-sync",
+  "version": "1.0.0",
+  "description": "**A multi-city retail storefront powered by real-time inventory synchronization, event-driven architecture, and intelligent product search.**",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "demo": "concurrently --kill-others -n FRONTEND,BACKEND \"npm --prefix frontend run dev -- --host 127.0.0.1 --port 5173 --strictPort\" \"npm --prefix backend run dev:all\""
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MehulNegi/Shelf-Sync.git"
+  },
+  "keywords": [],
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/MehulNegi/Shelf-Sync/issues"
+  },
+  "homepage": "https://github.com/MehulNegi/Shelf-Sync#readme",
+  "devDependencies": {
+    "concurrently": "^10.0.7"
+  }
+}
