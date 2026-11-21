@@ -7,6 +7,7 @@ import { createPool } from '../../src/db/pool.js';
 import { migrate } from '../../src/db/migrations.js';
 import { seed } from '../../src/db/seeds.js';
 import { PgProductRepository } from '../../src/repositories/products.js';
+import { PgOrderRepository } from '../../src/repositories/orders.js';
 
 test('real PostgreSQL migrations, repeat-safe seed, API filtering, and constraints', { skip: process.env.RUN_DB_TESTS !== '1' ? 'Set RUN_DB_TESTS=1 and configure verified Aiven DATABASE_URL / CA for a test database' : false }, async t => {
   const config = loadConfig();
@@ -33,7 +34,7 @@ test('real PostgreSQL migrations, repeat-safe seed, API filtering, and constrain
   await seed(pool);
   assert.equal((await pool.query('SELECT count(*)::int AS count FROM products')).rows[0].count, 12);
   assert.equal((await pool.query('SELECT count(*)::int AS count FROM inventory')).rows[0].count, 36);
-  const api = buildApp({ products: new PgProductRepository(pool), frontendOrigin: 'http://localhost:5173' });
+  const api = buildApp({ products: new PgProductRepository(pool), orders: new PgOrderRepository(pool), frontendOrigin: 'http://localhost:5173' });
   app = api;
   for (const [city, stock] of [['pune', 1], ['delhi', 8], ['bengaluru', 3]] as const) {
     const response = await api.inject(`/api/products/prod_001?city=${city}`);

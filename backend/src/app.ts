@@ -3,9 +3,13 @@ import cors from '@fastify/cors';
 import type { ProductRepository } from './types/product.js';
 import { ApiError, ProductService } from './services/products.js';
 import { registerProductRoutes } from './routes/products.js';
+import { registerOrderRoutes } from './routes/orders.js';
+import { OrderService } from './services/orders.js';
+import type { OrderRepository } from './types/order.js';
 
 export interface AppOptions {
   products: ProductRepository;
+  orders: OrderRepository;
   frontendOrigin: string;
   logger?: boolean;
 }
@@ -33,8 +37,6 @@ export function buildApp(options: AppOptions) {
     schema: { response: { 200: { type: 'object', required: ['status'], properties: { status: { type: 'string', const: 'ok' } } } } }
   }, async () => ({ status: 'ok' }));
   registerProductRoutes(app, new ProductService(options.products));
-  const notImplemented = async () => { throw new ApiError(501, 'NOT_IMPLEMENTED', 'Order checkout and retrieval are not implemented in this sprint'); };
-  app.post('/api/orders', notImplemented);
-  app.get('/api/orders/:id', notImplemented);
+  registerOrderRoutes(app, new OrderService(options.orders));
   return app;
 }

@@ -2,11 +2,12 @@ import { buildApp } from './app.js';
 import { loadConfig, SetupError } from './config/env.js';
 import { createPool } from './db/pool.js';
 import { PgProductRepository } from './repositories/products.js';
+import { PgOrderRepository } from './repositories/orders.js';
 
 async function start() {
   const config = loadConfig();
   const pool = createPool(config);
-  const app = buildApp({ products: new PgProductRepository(pool), frontendOrigin: config.frontendOrigin, logger: true });
+  const app = buildApp({ products: new PgProductRepository(pool), orders: new PgOrderRepository(pool), frontendOrigin: config.frontendOrigin, logger: true });
   app.addHook('onClose', async () => { await pool.end(); });
   try {
     await pool.query('SELECT 1');
