@@ -7,6 +7,7 @@ import { ProductDetails } from '../components/products/ProductDetails'
 import { Input } from '../components/ui/input'
 import { useCart } from '../hooks/use-cart'
 import { useProducts } from '../hooks/use-products'
+import { isMockMode } from '../services/backend'
 import { categories, cities, type Product, type ProductQuery } from '../types/products'
 
 export function Storefront() {
@@ -66,7 +67,10 @@ export function Storefront() {
         search={search} onSearchChange={setSearch} />
       <main className="shell">
         <section className="hero" aria-labelledby="store-heading">
-          <p className="hero-city"><MapPin size={17} aria-hidden="true" /> Shopping in {cities[city]}</p>
+          <div className="hero-context">
+            <p className="hero-city"><MapPin size={17} aria-hidden="true" /> Shopping in {cities[city]}</p>
+            <p className="catalog-mode">{isMockMode ? 'Mock mode' : 'Live API mode'}</p>
+          </div>
           <h1 id="store-heading">Shop near you.</h1>
           <p>Browse electronics, apparel and groceries and see what’s in stock in your city.</p>
         </section>
@@ -76,7 +80,7 @@ export function Storefront() {
             <h2 id="catalog-heading">Browse products</h2>
             <p role="status">{invalidPrice ? '' : data
               ? `${data.total} ${data.total === 1 ? 'product' : 'products'} in ${cities[city]}`
-              : error ? '' : 'Loading products…'}</p>
+              : error ? '' : `Checking availability in ${cities[city]}…`}</p>
           </div>
           <div className="filters" role="group" aria-label="Product filters">
             <span className="filter-title"><SlidersHorizontal size={18} aria-hidden="true" /> Filters</span>
@@ -120,7 +124,12 @@ export function Storefront() {
             </div>
           ) : !data ? (
             <div className="product-grid" aria-hidden="true">
-              {[0, 1, 2].map((item) => <div className="skeleton motion-safe:animate-pulse" key={item} />)}
+              {[0, 1, 2].map((item) => (
+                <div className="product-skeleton motion-safe:animate-pulse" key={item}>
+                  <div className="skeleton-media" />
+                  <div className="skeleton-body"><span /><span /><span /></div>
+                </div>
+              ))}
             </div>
           ) : !data.products.length ? (
             <div className="state-panel">

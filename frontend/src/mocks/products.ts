@@ -7,6 +7,11 @@ type CatalogEntry = Omit<Product, 'city' | 'stock' | 'available'> & {
 
 const catalog: CatalogEntry[] = [
   {
+    id: 'prod_007', name: 'Wireless Bluetooth Earphones', category: 'electronics',
+    description: 'Noise-isolating wireless earphones', price: 1999, imageUrl: '/images/earphones.jpg',
+    inventory: { pune: 1, delhi: 8, bengaluru: 3 },
+  },
+  {
     id: 'prod_001', name: 'Wireless Over-Ear Headphones', category: 'electronics',
     description: 'Cushioned Bluetooth headphones', price: 2499, imageUrl: '/images/headphones.webp',
     inventory: { pune: 12, delhi: 0, bengaluru: 8 },
