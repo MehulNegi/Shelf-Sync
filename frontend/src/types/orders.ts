@@ -17,10 +17,12 @@ export interface OrderCreated {
   total: number
 }
 
+export type OrderStatus = 'pending' | 'cancelled' | 'confirmed' | 'processing' | 'shipped' | 'delivered'
+
 export interface OrderDetails {
   id: string
   city: City
-  status: 'confirmed'
+  status: OrderStatus
   total: number
   items: (OrderItem & { name: string; unitPrice: number })[]
 }

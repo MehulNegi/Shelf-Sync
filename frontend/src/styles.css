@@ -266,3 +266,51 @@ footer { background: #f5eef7; border-top: 1px solid var(--color-line); }
   .cart-toggle svg { width: 15px; }
   .dialog-header, .dialog-content { padding-inline: .8rem; }
 }
+
+.header-discovery { display: flex; align-items: center; gap: .65rem; min-width: 0; }
+.header-discovery .search-box { min-width: 0; max-width: none; flex: 1; }
+.orders-nav-link { display: inline-flex; flex: 0 0 auto; align-items: center; gap: .35rem; min-height: var(--control-height); padding-inline: .55rem; border-radius: .65rem; color: var(--purple); font-size: .875rem; font-weight: 650; }
+.orders-nav-link:hover { background: var(--lavender); }
+.confirmation-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .45rem; }
+.history-nav { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .4rem 1rem; min-height: 4.5rem; padding-block: .65rem; }
+.order-history { max-width: 58rem; padding-block: clamp(1.1rem, 4vw, 2.5rem) 3rem; }
+.history-heading { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem .85rem; margin-bottom: 1.2rem; }
+.history-heading h1 { font-family: var(--font-display); font-size: clamp(2rem, 5vw, 3rem); font-weight: 800; letter-spacing: -.05em; line-height: 1.12; }
+.history-heading p { flex-basis: 100%; color: var(--muted); }
+.history-mode { display: inline-flex; align-items: center; gap: .35rem; border: 1px solid var(--color-line); border-radius: .45rem; background: var(--lavender); color: var(--purple); padding: .25rem .55rem; font-size: .875rem; }
+.history-list { display: grid; gap: .8rem; }
+.history-card { display: grid; gap: .7rem; min-width: 0; padding: clamp(.85rem, 2vw, 1.25rem); overflow-wrap: anywhere; }
+.history-card-header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .35rem .65rem; }
+.history-card-header > div { min-width: 0; }
+.history-card-header h2 { font-family: var(--font-mono); font-size: .95rem; font-weight: 650; }
+.history-card-label, .history-summary dt, .history-items-preview { color: var(--muted); font-size: .875rem; }
+.history-status { border-radius: 2rem; padding: .25rem .65rem; background: var(--lavender); color: var(--purple); font-size: .875rem; font-weight: 650; }
+.history-status:is([data-status="confirmed"], [data-status="delivered"]) { background: #e8f3eb; color: #1d593c; }
+.history-status[data-status="cancelled"] { background: #f5e8eb; color: #823744; }
+.history-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .6rem; padding: .6rem .75rem; border-radius: .65rem; background: #f8f3fa; }
+.history-summary dd { font-weight: 650; }
+.history-items-preview { margin-top: .1rem; }
+.history-details > summary { display: flex; align-items: center; justify-content: space-between; gap: .5rem; min-height: var(--control-height); color: var(--purple); font-weight: 650; cursor: pointer; list-style: none; }
+.history-details > summary::-webkit-details-marker { display: none; }
+.history-details[open] > summary svg { transform: rotate(180deg); }
+.history-details h3 { margin-block: .65rem .35rem; font-weight: 700; }
+.tracking-steps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .45rem; }
+.tracking-step { display: flex; align-items: flex-start; gap: .4rem; padding: .5rem; border: 1px solid var(--color-line); border-radius: .65rem; color: var(--muted); }
+.tracking-step[data-state="current"] { border-color: #ad87ca; background: var(--lavender); color: var(--purple-dark); }
+.tracking-step[data-state="completed"] { color: #1d593c; }
+.tracking-symbol { flex: 0 0 auto; padding-top: .13rem; }
+.tracking-step strong, .tracking-step div > span { display: block; font-size: .875rem; }
+.tracking-step div > span { font-size: .8125rem; }
+.history-empty .primary-button { margin-top: .5rem; }
+
+@media (max-width: 50rem) {
+  .header-discovery { grid-row: 2; grid-column: 1 / -1; }
+}
+@media (max-width: 38rem) {
+  .tracking-steps { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 25rem) {
+  .header-discovery { gap: .3rem; }
+  .header-discovery .orders-nav-link { padding-inline: .35rem; }
+  .header-discovery .orders-nav-link svg { display: none; }
+}
