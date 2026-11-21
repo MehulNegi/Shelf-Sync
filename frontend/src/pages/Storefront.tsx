@@ -1,4 +1,4 @@
-import { ChevronDown, MapPin, PackageSearch, SlidersHorizontal } from 'lucide-react'
+import { ChevronDown, MapPin, PackageCheck, PackageSearch, RotateCcw } from 'lucide-react'
 import { useDeferredValue, useMemo, useState } from 'react'
 import { CartDialog } from '../components/cart/CartDialog'
 import { Header } from '../components/layout/Header'
@@ -22,6 +22,7 @@ export function Storefront() {
   const [max, setMax] = useState('')
   const [attempt, setAttempt] = useState(0)
 
+  const hasFilters = Boolean(search || category || min || max)
   const q = useDeferredValue(search.trim())
   const minPrice = min === '' ? undefined : Number(min)
   const maxPrice = max === '' ? undefined : Number(max)
@@ -67,27 +68,40 @@ export function Storefront() {
         search={search} onSearchChange={setSearch} />
       <main className="shell">
         <section className="hero" aria-labelledby="store-heading">
-          <div className="hero-context">
-            <p className="hero-city"><MapPin size={17} aria-hidden="true" /> Shopping in {cities[city]}</p>
-            <p className="catalog-mode">{isMockMode ? 'Mock mode' : 'Live API mode'}</p>
+          <div className="hero-copy">
+            <p className="hero-city"><MapPin size={15} aria-hidden="true" /> Local inventory · {cities[city]}</p>
+            <h1 id="store-heading">Good finds.<br /> <em>Closer to home.</em></h1>
+            <p className="hero-description">Browse tech, everyday wear, and pantry staples in your city.</p>
+            <a className="primary-button hero-cta" href="#catalog">Shop the catalog</a>
           </div>
-          <h1 id="store-heading">Shop near you.</h1>
-          <p>Browse electronics, apparel and groceries and see what’s in stock in your city.</p>
+          <div className="hero-art" aria-hidden="true">
+            <div className="hero-frame hero-frame-back">
+              <img src="/images/headphones.webp" alt="" width="300" height="300" />
+            </div>
+            <div className="hero-frame hero-frame-front">
+              <img src="/images/sneakers.webp" alt="" width="300" height="300" />
+            </div>
+          </div>
         </section>
 
-        <section className="catalog" aria-labelledby="catalog-heading">
+        <section id="catalog" className="catalog" aria-labelledby="catalog-heading">
           <div className="catalog-heading">
-            <h2 id="catalog-heading">Browse products</h2>
-            <p role="status">{invalidPrice ? '' : data
-              ? `${data.total} ${data.total === 1 ? 'product' : 'products'} in ${cities[city]}`
-              : error ? '' : `Checking availability in ${cities[city]}…`}</p>
+            <div>
+              <h2 id="catalog-heading">Shop the catalog</h2>
+              <p role="status">{invalidPrice ? '' : data
+                ? `${data.total} ${data.total === 1 ? 'product' : 'products'} in ${cities[city]}`
+                : error ? '' : `Checking availability in ${cities[city]}…`}</p>
+            </div>
+            <div className="catalog-context">
+              <p className="inventory-label"><PackageCheck size={16} aria-hidden="true" /> Inventory for {cities[city]}</p>
+              <p className="catalog-mode">{isMockMode ? 'Mock mode' : 'Live API mode'}</p>
+            </div>
           </div>
           <div className="filters" role="group" aria-label="Product filters">
-            <span className="filter-title"><SlidersHorizontal size={18} aria-hidden="true" /> Filters</span>
             <label className="filter-control">
               Category
               <span className="select-wrap">
-                <select className="control" value={category} onChange={(event) => setCategory(event.target.value)}>
+                <select className="control" data-active={category !== ''} value={category} onChange={(event) => setCategory(event.target.value)}>
                   <option value="">All categories</option>
                   {categories.map((value) => (
                     <option key={value} value={value}>{value[0].toUpperCase() + value.slice(1)}</option>
@@ -98,19 +112,19 @@ export function Storefront() {
             </label>
             <label className="filter-control">
               Min price (₹)
-              <Input type="number" min="0" step="any" placeholder="0" value={min}
+              <Input type="number" min="0" step="any" placeholder="No minimum" value={min} data-active={min !== ''}
                 aria-invalid={invalidPrice} aria-describedby={invalidPrice ? 'price-error' : undefined}
                 onChange={(event) => setMin(event.target.value)} />
             </label>
             <label className="filter-control">
               Max price (₹)
-              <Input type="number" min="0" step="any" placeholder="Any" value={max}
+              <Input type="number" min="0" step="any" placeholder="No maximum" value={max} data-active={max !== ''}
                 aria-invalid={invalidPrice} aria-describedby={invalidPrice ? 'price-error' : undefined}
                 onChange={(event) => setMax(event.target.value)} />
             </label>
-            {(search || category || min || max) && (
-              <button className="text-button" type="button" onClick={clearFilters}>Clear filters</button>
-            )}
+            <button className="clear-filters" type="button" disabled={!hasFilters} onClick={clearFilters}>
+              <RotateCcw size={16} aria-hidden="true" /> Clear filters
+            </button>
           </div>
 
           {invalidPrice ? (

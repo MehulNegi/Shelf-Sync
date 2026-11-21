@@ -17,7 +17,7 @@ VITE_API_BASE_URL=http://localhost:3000 npm run dev
 
 The backend must allow the frontend origin through CORS, typically `FRONTEND_ORIGIN=http://localhost:5173`. Set `VITE_API_BASE_URL` to the public HTTP address of the backend. An optional trailing `/api` is accepted. You can also set the variable in an ignored `.env.local` file and restart Vite. Production builds read it at build time. Keep database credentials on the backend.
 
-The storefront uses the product list and product detail routes for city-specific availability. Checkout posts the current city's product IDs and quantities, then retrieves the confirmed order by ID. Both order endpoints must be implemented for the full live flow. See the [shared API contract](../contracts/api.md). Root-relative product image URLs are tried on the API origin, with a local fallback for `/images/` assets.
+The storefront uses the product list and product detail routes for city-specific availability. Checkout posts the current city's product IDs and quantities, then retrieves the confirmed order by ID. Both order endpoints must be implemented for the full live flow. See the [shared API contract](../contracts/api.md). Seeded catalog image paths resolve directly to bundled WebP assets. Custom image URLs supplied by the API are tried first and can fall back to bundled images for seeded products. The eleven new product illustrations were generated for ShelfSync.
 
 ## Offline mock mode
 
