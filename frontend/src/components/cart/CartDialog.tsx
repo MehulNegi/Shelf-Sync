@@ -1,3 +1,4 @@
+import { AlertCircle } from 'lucide-react'
 import { useCallback, useRef, useState } from 'react'
 import { useResource } from '../../hooks/use-resource'
 import { formatPrice } from '../../lib/format-price'
@@ -70,11 +71,16 @@ export function CartDialog({ city, items, onAdjust, onRemove, onPlaced, refreshC
 
   return (
     <Dialog title={order ? 'Order confirmation' : `Cart · ${cities[city]}`} onClose={onClose} busy={pending}>
-      {order ? <OrderConfirmation order={order} onClose={onClose} /> : (
+      {order ? <OrderConfirmation order={order} city={city} onClose={onClose} /> : (
         <div className="checkout-content">
           <p>Each city has its own cart. Switch cities to browse your other carts.</p>
           {isMockMode && <p className="mock-notice">Mock checkout · Orders and stock changes are simulated for this session.</p>}
-          {message && <p className="checkout-error" role="alert">{message}</p>}
+          {message && (
+            <div className="checkout-alert" role="alert">
+              <AlertCircle size={20} aria-hidden="true" />
+              <div><strong>Checkout needs attention</strong><p>{message}</p></div>
+            </div>
+          )}
           {!items.length ? (
             <>
               <p>Your cart is empty.</p>
@@ -82,7 +88,7 @@ export function CartDialog({ city, items, onAdjust, onRemove, onPlaced, refreshC
             </>
           ) : (
             <>
-              {!result && <p role="status">Checking cart availability…</p>}
+              {!result && <p className="progress-note" role="status">Checking cart availability in {cities[city]}…</p>}
               {result && 'error' in result && (
                 <div>
                   <p role="alert">{result.error}</p>
@@ -101,7 +107,7 @@ export function CartDialog({ city, items, onAdjust, onRemove, onPlaced, refreshC
                         {products && <p className={quantity > stock ? 'checkout-error' : ''}>
                           {stock === 0 ? 'Out of stock. Remove this item to continue.'
                             : quantity > stock ? `Only ${stock} left. Reduce the quantity to continue.`
-                              : `${stock} left`}
+                              : `${stock} left in ${cities[city]}`}
                         </p>}
                       </div>
                       <div className="cart-controls">

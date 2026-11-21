@@ -26,7 +26,7 @@ export function Header({ city, onCityChange, cartCount, onOpenCart, search, onSe
           <label>
             <span className="sr-only">Search products</span>
             <Search size={19} aria-hidden="true" />
-            <Input type="search" placeholder="Search for products" value={search}
+            <Input type="search" placeholder="Search products" value={search}
               onChange={(event) => onSearchChange(event.target.value)} />
           </label>
         </div>

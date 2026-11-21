@@ -31,3 +31,10 @@ The selected city and its cart, along with carts for other cities, persist in br
 npm test
 npm run build
 ```
+
+## Demo walkthrough
+
+1. In live mode, confirm the storefront says **Live API mode** and select **Pune**.
+2. Search for **Bluetooth Earphones**. Check the card's Pune stock count, then add an available unit to the cart.
+3. Open the Pune cart and place the order. A successful response shows the order ID and server-calculated total. If stock changed, the cart refreshes and shows which quantities need adjustment.
+4. For offline rehearsal, start in **Mock mode**. The sample catalog also contains Wireless Bluetooth Earphones. Reloading resets simulated inventory and orders while retaining saved cart items.

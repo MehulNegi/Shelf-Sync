@@ -55,7 +55,7 @@
 .product-image.apparel { background: #edf1fb; }
 .product-image.groceries { background: #faf1e5; }
 .product-image img { width: 68%; height: 85%; min-height: 0; object-fit: contain; }
-.image-placeholder { font-size: .875rem; color: #53586f; }
+.image-placeholder { display: flex; flex-direction: column; align-items: center; gap: .65rem; color: #53586f; font-size: .875rem; text-align: center; }
 .product-body { padding: 1rem; }
 .product-category { font-size: .875rem; font-weight: 650; color: #534185; }
 .product-body h3 { font-size: 1.05rem; line-height: 1.35; font-weight: 700; margin: .2rem 0 .45rem; overflow-wrap: anywhere; }
@@ -67,7 +67,6 @@
 .state-panel { min-height: 10rem; display: grid; place-content: center; justify-items: center; gap: .35rem; text-align: center; padding: 1rem; border: 1px solid var(--color-line); border-radius: .9rem; background: #fff; }
 .state-panel .text-button { justify-self: center; }
 .state-panel h3 { font-weight: 750; }
-.skeleton { min-height: 18rem; background: #ededf4; border-radius: 1rem; }
 footer { background: white; border-top: 1px solid var(--color-line); }
 .footer-inner { display: flex; justify-content: space-between; align-items: center; gap: 1rem; min-height: 4.75rem; }
 .footer-inner a { color: #492b91; font-size: .875rem; font-weight: 650; }
@@ -100,7 +99,7 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 
 .store-dialog { width: min(100% - 2rem, 36rem); max-height: calc(100dvh - 2rem); margin: auto; border: 1px solid var(--color-line); border-radius: 1rem; background: white; color: #171b35; overscroll-behavior: contain; }
 .store-dialog::backdrop { background: #19112b80; }
-.dialog-header { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: .75rem 1rem; border-bottom: 1px solid var(--color-line); }
+.dialog-header { position: sticky; top: 0; z-index: 1; background: white; display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: .75rem 1rem; border-bottom: 1px solid var(--color-line); }
 .dialog-header h2 { font-size: 1.25rem; font-weight: 750; }
 .dialog-content { padding: 1rem; }
 .icon-button { display: inline-grid; place-items: center; min-width: 2.75rem; border: 1px solid var(--color-line); color: #352477; }
@@ -122,4 +121,34 @@ button:disabled { cursor: not-allowed; opacity: .55; }
   .header-inner .search-box { grid-column: 1; }
 }
 
-.image-placeholder { display: flex; align-items: center; gap: .5rem; }
+.hero-context { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem 1rem; }
+.catalog-mode { color: #f2eaff; font-size: .875rem; font-weight: 650; }
+.placeholder-icon { display: grid; place-items: center; width: 4rem; aspect-ratio: 1; color: #534185; background: #ffffffb0; border-radius: 1rem; }
+.product-skeleton { min-width: 0; overflow: hidden; border: 1px solid var(--color-line); border-radius: 1rem; background: white; }
+.skeleton-media { aspect-ratio: 16 / 10; background: #ededf4; }
+.skeleton-body { display: grid; gap: .8rem; padding: 1rem; }
+.skeleton-body span { width: 40%; height: 1.05rem; border-radius: .4rem; background: #ededf4; }
+.skeleton-body span:nth-child(2) { width: 75%; }
+.skeleton-body span:last-child { width: 50%; height: 2.75rem; margin-top: .5rem; }
+
+.checkout-alert { display: flex; align-items: flex-start; gap: .65rem; width: 100%; padding: .8rem; border: 1px solid #edcdd2; border-radius: .65rem; background: #fff3f4; color: #792630; }
+.checkout-alert svg, .confirmation-panel h3 svg { flex-shrink: 0; margin-top: .1rem; }
+.checkout-alert p { margin-top: .25rem; }
+.progress-note { color: #53586f; }
+.confirmation-panel { width: 100%; padding: 1rem; border: 1px solid #c5e3d2; border-radius: .8rem; background: #eff9f2; color: #125639; }
+.confirmation-panel h3 { display: flex; align-items: center; gap: .6rem; margin-bottom: .9rem; font-size: 1.25rem; font-weight: 750; }
+.order-summary > div { border-color: #c5e3d2; }
+.order-summary > div:last-child { padding-bottom: 0; }
+.order-summary dd { min-width: 0; font-weight: 750; }
+.order-summary > div:last-child dd { font-size: 1.25rem; }
+
+@media (max-width: 47rem) {
+  .hero { margin-block: 1.25rem 1.65rem; }
+  .checkout-summary > .primary-button { flex: 1 0 auto; }
+}
+
+@media (max-width: 27rem) {
+  .header-inner .search-box { grid-column: 1 / -1; grid-row: 3; }
+  .header-inner .city-control { grid-column: 1 / -1; justify-self: start; }
+  .checkout-summary > .primary-button { flex-basis: 100%; }
+}

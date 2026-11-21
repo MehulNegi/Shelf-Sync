@@ -61,7 +61,7 @@ test('HTTP 409 preserves the contract error code and prompts for a cart correcti
   }, { status: 409 }))
   await assert.rejects(placeOrder(request), (error) =>
     error instanceof ApiError && error.status === 409 && error.code === 'INSUFFICIENT_STOCK' &&
-    /out of stock.*review/i.test(checkoutErrorMessage(error)),
+    /stock changed.*review availability/i.test(checkoutErrorMessage(error)),
   )
 })
 
