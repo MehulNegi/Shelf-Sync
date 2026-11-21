@@ -7,14 +7,14 @@ import { createServer } from 'vite'
 
 const vite = await createServer({ server: { middlewareMode: true, ws: false, watch: null } })
 const {
-  baseline, calculateScenario, breakEvenDiscount, advise, parseHundredths, formatPaise, formatDiscount, strategies,
+  baseline, toInputs, calculateScenario, breakEvenDiscount, advise, parseHundredths, formatPaise, formatDiscount, strategies,
   catalogPricePaise, completeScenario, contributionMarginBps, emptyProductInputs, productStrategies,
 } = await vite.ssrLoadModule('/src/lib/profit-os.ts')
 const { ProfitOS } = await vite.ssrLoadModule('/src/pages/ProfitOS.tsx')
 const { EarningsProductCard } = await vite.ssrLoadModule('/src/components/profit-os/EarningsProductCard.tsx')
-const { ProfitLab } = await vite.ssrLoadModule('/src/components/profit-os/ProfitLab.tsx')
+const { EarningsGuide } = await vite.ssrLoadModule('/src/components/profit-os/EarningsGuide.tsx')
+const { improvementOptions, expenseGroups } = await vite.ssrLoadModule('/src/lib/profit-os-guidance.ts')
 const { editedProductFields, productDraft, resetProductDraft, updateProductDraft } = await vite.ssrLoadModule('/src/lib/profit-os-drafts.ts')
-const { OrderAutopsy } = await vite.ssrLoadModule('/src/components/profit-os/OrderAutopsy.tsx')
 const { demoProductInputs } = await vite.ssrLoadModule('/src/lib/profit-os-demo.ts')
 const { mockProducts } = await vite.ssrLoadModule('/src/mocks/products.ts')
 const seeds = JSON.parse(await readFile(new URL('../../backend/database/seed/products.json', import.meta.url), 'utf8'))
@@ -96,15 +96,36 @@ test('visual picker cards expose selection, price and the shared product image o
   assert.match(render({ ...product, imageUrl: '', price: null }, false), /aria-pressed="false".*role="img" aria-label="Image unavailable for Shop item".*Price unavailable/)
 })
 
-test('invalid inputs do not produce misleading estimates', () => {
-  const invalid = renderToStaticMarkup(createElement(ProfitLab, {
-    inputs: { discount: '101', courier: '180', deliveryFee: '0' }, onChange() {},
-  }))
+function renderGuide(input, price = baseline.merchandisePaise) {
+  return renderToStaticMarkup(createElement(EarningsGuide, { price, input, editedFields: new Set(), onEdit() {} }))
+}
+
+test('guided view displays gains, losses and break-even, with exact inputs collapsed', () => {
+  for (const [discount, outcome] of [['15', 'Estimated gain'], ['20', 'Estimated loss'], ['17.5', 'Break even']]) {
+    const markup = renderGuide({ ...toInputs(baseline), discount })
+    assert(markup.includes(outcome))
+    assert.equal(markup.match(/type="range"/g)?.length, 2)
+    assert.match(markup, /<details class="command-panel retailer-details earnings-details"><summary>See all costs and edit details/)
+  }
+  const invalid = renderGuide({ ...toInputs(baseline), discount: '101' })
   assert.match(invalid, /aria-invalid="true"/)
-  assert.match(invalid, /Enter valid scenario inputs/)
-  assert.doesNotMatch(invalid, /Estimated contribution/)
+  assert.match(invalid, /Fill in the missing or invalid amounts/)
+  assert.doesNotMatch(invalid, /Estimated gain|Estimated loss/)
 })
 
+test('expense groups reconcile to exact paise and suggestions apply deterministic improvements', () => {
+  const scenario = { ...baseline, packagingPaise: 3099n, labourPaise: 1001n, taxPaise: 175n }
+  const groups = expenseGroups(scenario)
+  assert.deepEqual(groups.map(({ amount }) => amount), [125000n, 21099n, 20176n])
+  assert.equal(groups.reduce((total, { amount }) => total + amount, 0n), calculateScenario(scenario).expensesPaise)
+  const options = improvementOptions(baseline)
+  assert.deepEqual(options.map(({fields}) => fields), [{ discount: '17.5' }, { courier: '160' }])
+  const results = options.map(({ fields }) => calculateScenario(completeScenario(
+    baseline.merchandisePaise, { ...toInputs(baseline), ...fields },
+  )).contributionPaise)
+  assert.deepEqual(results, [0n, -3000n])
+  assert.deepEqual(improvementOptions({ ...baseline, discountBps: 0n, courierPaise: 0n }), [])
+})
 
 const assumptions = {
   acquisition: '1250', packaging: '30', payment: '40', marketing: '150', labour: '20.25',
@@ -147,13 +168,9 @@ test('unknown costs and unavailable prices do not produce an estimated contribut
   assert.equal(completeScenario(199999n, { ...assumptions, labour: '' }), null)
   assert.equal(completeScenario(199999n, { ...assumptions, tax: 'invalid' }), null)
   assert.equal(completeScenario(199999n, { ...assumptions, tax: '0' }).taxPaise, 0n)
-  const markup = renderToStaticMarkup(createElement(OrderAutopsy, {
-    catalog: { price: 199999n, input: emptyProductInputs }, scenario: null,
-  }))
-  assert.match(markup, /Catalog selling price.*₹1,999.99/)
-  assert.match(markup, /Estimated contribution<\/dt><dd>Unknown/)
-  assert.match(markup, /Cost to buy the product<\/dt><dd>Unknown/)
-  assert.doesNotMatch(markup, /Demo assumptions/)
+  assert.match(renderGuide(emptyProductInputs), /Fill in the missing or invalid amounts/)
+  assert.match(renderGuide(emptyProductInputs, null), /catalog selling price is unavailable/)
+  assert.doesNotMatch(renderGuide(emptyProductInputs), /Estimated gain|Estimated loss/)
 })
 
 

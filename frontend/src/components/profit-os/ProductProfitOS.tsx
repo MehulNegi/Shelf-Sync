@@ -1,7 +1,7 @@
 import { PackageSearch } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useProducts } from '../../hooks/use-products'
-import { catalogPricePaise, completeScenario, formatPaise, toInputs, type ProductInputs } from '../../lib/profit-os'
+import { catalogPricePaise, formatPaise, type ProductInputs } from '../../lib/profit-os'
 import { demoProductInputs } from '../../lib/profit-os-demo'
 import { editedProductFields, productDraft, type ProfitDrafts } from '../../lib/profit-os-drafts'
 import { isMockMode } from '../../services/backend'
@@ -9,9 +9,7 @@ import { cities, type City } from '../../types/products'
 import { ProductImage } from '../products/ProductImage'
 import { EarningsProductCard } from './EarningsProductCard'
 import { Input } from '../ui/input'
-import { OrderAutopsy } from './OrderAutopsy'
-import { ProfitLab } from './ProfitLab'
-import { StrategyComparison } from './StrategyComparison'
+import { EarningsGuide } from './EarningsGuide'
 
 export interface CatalogSelection {
   city: City
@@ -40,7 +38,6 @@ export function ProductProfitOS({ selection, drafts, onSelect, onEdit, onReset }
   const defaults = product ? demoProductInputs(product, price) : undefined
   const input = productDraft(drafts, city, productId, defaults)
   const editedFields = editedProductFields(drafts, city, productId)
-  const scenario = completeScenario(price, input)
 
   const searchInput = useRef<HTMLInputElement>(null)
   const summaryHeading = useRef<HTMLHeadingElement>(null)
@@ -118,19 +115,8 @@ export function ProductProfitOS({ selection, drafts, onSelect, onEdit, onReset }
                 onClick={() => onReset(selection)}>Reset to demo estimates</button>
             </div>
           )}
-          <div className="profit-workspace">
-            <OrderAutopsy catalog={{ price, input }} scenario={scenario} />
-            <ProfitLab catalog={{ input, scenario, hasPrice: price !== null, editedFields,
-                onChange: (field, value) => onEdit(selection, { [field]: value }) }} />
-          </div>
-          <StrategyComparison catalogScenario={scenario} onApply={(next) => {
-            const values = toInputs(next)
-            const changes = Object.fromEntries(Object.entries(values).filter(([field, value]) =>
-              input[field as keyof ProductInputs] !== value,
-            ))
-            if (Object.keys(changes).length) onEdit(selection, changes)
-            document.getElementById('profit-discount')?.focus()
-          }} />
+          <EarningsGuide key={`${city}:${productId}`} price={price} input={input} editedFields={editedFields}
+            onEdit={(fields) => onEdit(selection, fields)} />
         </>
       )}
     </>
