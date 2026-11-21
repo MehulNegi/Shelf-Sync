@@ -457,21 +457,8 @@ footer { background: #f5eef7; border-top: 1px solid var(--color-line); }
   .profit-inputs { grid-template-columns: minmax(0, 1fr); }
 }
 
-.profit-modes { display: flex; flex-wrap: wrap; gap: .45rem; margin-bottom: .85rem; }
-.profit-modes [aria-pressed="true"] { background: var(--purple); border-color: var(--purple); color: white; }
-.profit-modes [aria-pressed="true"]:hover { background: var(--purple-dark); }
 .profit-catalog { margin-bottom: .85rem; padding: clamp(.9rem, 2vw, 1.35rem); }
-.profit-catalog-fields { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) minmax(0, 1.6fr); gap: .65rem; margin-block: .7rem; }
 .profit-catalog-fields select { max-width: 100%; }
-.profit-selected-product { padding: .75rem; border-radius: .65rem; background: var(--lavender); overflow-wrap: anywhere; }
-.profit-selected-product h3 { font-weight: 750; }
-.profit-selected-product dl { display: flex; flex-wrap: wrap; gap: .55rem 1.3rem; margin-top: .35rem; font-size: .875rem; }
-.profit-selected-product dt { color: var(--muted); }
-.profit-selected-product dd { font-weight: 650; }
-
-@media (max-width: 34rem) {
-  .profit-catalog-fields { grid-template-columns: minmax(0, 1fr); }
-}
 
 .profit-demo-controls { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem 1rem; margin-bottom: .85rem; padding: .75rem .9rem; border: 1px solid var(--color-line); border-radius: .7rem; background: #f5eef8; }
 .profit-demo-controls p { flex: 1 1 24rem; font-size: .875rem; color: var(--purple-dark); }
@@ -529,8 +516,6 @@ footer { background: #f5eef7; border-top: 1px solid var(--color-line); }
 .retailer-steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .75rem; margin-bottom: 1rem; }
 .retailer-steps li { display: flex; align-items: start; gap: .6rem; padding: .75rem; border: 1px solid var(--color-line); border-radius: .8rem; background: white; font-weight: 650; }
 .retailer-steps span { flex: 0 0 1.65rem; text-align: center; border-radius: 50%; color: var(--purple-dark); background: var(--lavender); }
-.retailer-demo-note { margin-bottom: 1rem; padding: .85rem 1rem; border-radius: .75rem; background: #fbf1dd; color: #51350e; }
-.retailer-demo-note p { margin-top: .25rem; }
 .retailer-page .profit-inputs { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .85rem; }
 .retailer-page :is(.profit-ledger, .profit-results dt, .profit-advice p, .profit-advice ul, .profit-demo-controls p) { font-size: 1rem; }
 .retailer-page .profit-ledger dd { text-align: end; }
@@ -553,4 +538,37 @@ footer { background: #f5eef7; border-top: 1px solid var(--color-line); }
 @media (max-width: 500px) {
   .retailer-page :is(.retailer-summary, .profit-inputs, .profit-results) { grid-template-columns: minmax(0, 1fr); }
   .retailer-summary .command-metric { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; }
+}
+
+.retailer-page .profit-catalog-fields { display: grid; gap: .75rem; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); margin-block: 1rem; }
+.earnings-product-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 12rem), 1fr)); gap: .75rem; }
+.earnings-product-grid li { min-width: 0; }
+.earnings-product-card {
+  display: flex; flex-direction: column; width: 100%; height: 100%; overflow: hidden; cursor: pointer;
+  text-align: start; border: 2px solid var(--color-line); border-radius: .85rem; background: white;
+}
+.earnings-product-card .product-image { width: 100%; max-height: 11rem; }
+.earnings-product-card:hover { border-color: var(--purple); }
+.earnings-product-card[aria-pressed="true"] { border-color: var(--purple-dark); background: #f7effb; }
+.earnings-card-copy { display: flex; flex: 1; flex-direction: column; gap: .35rem; width: 100%; padding: .75rem; overflow-wrap: anywhere; }
+.earnings-card-copy > span:first-of-type { color: var(--purple-dark); font-weight: 750; }
+.earnings-card-status {
+  display: flex; align-items: center; gap: .3rem; align-self: flex-start; margin-top: auto;
+  padding: .2rem .45rem; border-radius: .35rem; background: var(--lavender); color: var(--purple-dark); font-weight: 650;
+}
+.earnings-product-card[aria-pressed="true"] .earnings-card-status { background: var(--purple-dark); color: white; }
+.earnings-selection {
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: 1.25rem;
+  align-items: center; margin-bottom: 1rem; overflow-wrap: anywhere;
+}
+.earnings-selection .product-image { border-radius: .75rem; }
+.earnings-selection h2:focus-visible { outline: 3px solid #6b388d; outline-offset: 3px; }
+.earnings-selection dl { display: flex; flex-wrap: wrap; gap: .65rem 1.5rem; margin-top: .65rem; }
+.earnings-selection dd { font-weight: 750; }
+.earnings-selection button { margin-top: .85rem; }
+@media (max-width: 600px) {
+  .retailer-page .profit-catalog-fields, .earnings-selection { grid-template-columns: minmax(0, 1fr); }
+  .earnings-product-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .5rem; }
+  .earnings-selection .product-image { max-height: 12rem; }
+  .earnings-card-copy { padding: .5rem; }
 }

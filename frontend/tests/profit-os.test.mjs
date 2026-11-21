@@ -11,6 +11,7 @@ const {
   catalogPricePaise, completeScenario, contributionMarginBps, emptyProductInputs, productStrategies,
 } = await vite.ssrLoadModule('/src/lib/profit-os.ts')
 const { ProfitOS } = await vite.ssrLoadModule('/src/pages/ProfitOS.tsx')
+const { EarningsProductCard } = await vite.ssrLoadModule('/src/components/profit-os/EarningsProductCard.tsx')
 const { ProfitLab } = await vite.ssrLoadModule('/src/components/profit-os/ProfitLab.tsx')
 const { editedProductFields, productDraft, resetProductDraft, updateProductDraft } = await vite.ssrLoadModule('/src/lib/profit-os-drafts.ts')
 const { OrderAutopsy } = await vite.ssrLoadModule('/src/components/profit-os/OrderAutopsy.tsx')
@@ -79,12 +80,23 @@ test('modeled advice gives feasible recovery targets and explains an insufficien
   assert.equal(severe.remainingLossWithoutCourierPaise, 107_000n)
 })
 
-test('page renders demo labels and suppresses misleading results for invalid inputs', () => {
+test('My Earnings opens on the visual catalog without preselecting an example sale', () => {
   const html = renderToStaticMarkup(createElement(ProfitOS))
-  for (const word of ['Where My Money Goes', 'sample costs for demonstration', 'Money coming in', 'Estimated costs',
-    'Try Different Prices', 'Suggestions for this sale', 'Estimated contribution', 'Ways to Earn More', '−₹50', '+₹110', '17.5%']) {
-    assert(html.includes(word), word)
+  for (const text of ['Choose a Product', 'Search your products...', 'Where are you selling?', 'Loading products for Pune']) {
+    assert(html.includes(text), text)
   }
+  assert.doesNotMatch(html, /Example sale|Demo scenario|Where My Money Goes|Estimated contribution/)
+})
+
+test('visual picker cards expose selection, price and the shared product image or fallback', () => {
+  const product = { ...seeds[0], id: 'shop-item', name: 'Shop item', price: 1999.25, imageUrl: '/images/headphones.webp' }
+  const render = (item, selected) => renderToStaticMarkup(createElement(EarningsProductCard, { product: item, selected, onSelect() {} }))
+  assert.match(render(product, true), /type="button".*aria-pressed="true".*aria-label="Shop item".*aria-describedby="earnings-price-shop-item"/)
+  assert.match(render(product, true), /src="[^"]*\/images\/headphones.webp" alt="Shop item".*₹1,999.25.*Selected/)
+  assert.match(render({ ...product, imageUrl: '', price: null }, false), /aria-pressed="false".*role="img" aria-label="Image unavailable for Shop item".*Price unavailable/)
+})
+
+test('invalid inputs do not produce misleading estimates', () => {
   const invalid = renderToStaticMarkup(createElement(ProfitLab, {
     inputs: { discount: '101', courier: '180', deliveryFee: '0' }, onChange() {},
   }))
