@@ -417,65 +417,21 @@ footer { background: #f5eef7; border-top: 1px solid var(--color-line); }
 .reservation-retry { display: flex; flex-wrap: wrap; align-items: center; gap: 0 .6rem; }
 
 .command-nav-links { display: flex; flex-wrap: wrap; gap: .3rem; }
-.profit-intro { align-items: end; }
-.profit-title-icon { display: grid; place-items: center; width: 2.65rem; aspect-ratio: 1; margin-bottom: .65rem; border-radius: .7rem; color: white; background: var(--purple); }
-.profit-intro > div:first-child p { color: var(--purple-dark); font-weight: 650; }
-.profit-demo { max-width: 29rem; }
-.profit-demo p { font-size: .875rem; }
-.profit-workspace { display: grid; grid-template-columns: minmax(0, .9fr) minmax(0, 1.25fr); align-items: start; gap: .85rem; margin-bottom: .85rem; }
-.profit-workspace > *, .profit-strategies { min-width: 0; padding: clamp(.9rem, 2vw, 1.35rem); }
-.profit-autopsy h3 { margin-top: .9rem; font-weight: 700; color: var(--purple-dark); }
-.profit-ledger { display: grid; gap: .35rem; margin-top: .45rem; font-size: .875rem; }
-.profit-ledger > div { display: flex; justify-content: space-between; align-items: baseline; gap: .35rem .7rem; }
-.profit-ledger dt, .profit-results dt { color: var(--muted); }
-.profit-ledger dd, .profit-results dd, .profit-strategy-table td[data-sign] { font-weight: 700; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
-.profit-subtotal { border-top: 1px solid var(--color-line); padding-top: .4rem; }
-.profit-autopsy-total { padding: .65rem; margin-top: .8rem; border-radius: .65rem; background: #f8eff9; }
-.profit-inputs, .profit-results { display: grid; gap: .65rem; margin-top: .85rem; }
+.profit-inputs { display: grid; gap: .65rem; margin-top: .85rem; }
 .profit-inputs { grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: start; }
-.profit-results { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.profit-results > div { padding: .65rem .75rem; border: 1px solid var(--color-line); border-radius: .7rem; background: #fcf8fc; }
-.profit-results dt { font-size: .825rem; }
-.profit-results dd { font-size: clamp(1.05rem, 2.3vw, 1.45rem); }
-.profit-results > .profit-result-primary { background: var(--lavender); border-color: #decaeb; }
 .profit-os [data-sign="loss"] { color: #892f48; }
 .profit-os [data-sign="gain"] { color: #1d593c; }
 .profit-os [data-sign="even"] { color: var(--purple-dark); }
-.profit-advice, .profit-validation { margin-top: .85rem; padding: .75rem .85rem; border-radius: .7rem; background: #f5eef8; }
-.profit-advice h3 { display: flex; align-items: center; gap: .4rem; color: var(--purple-dark); font-weight: 750; }
-.profit-advice p, .profit-advice ul { font-size: .875rem; }
-.profit-advice ul { list-style: disc; margin: .35rem 0 0 1.1rem; }
-.profit-advice .profit-caption { font-size: .8125rem; }
-.profit-strategies .command-table-wrap { position: relative; }
-.profit-strategy-table td:last-child { text-align: end; }
-.profit-strategy-table button { white-space: nowrap; }
 
-@media (max-width: 55rem) {
-  .profit-workspace { grid-template-columns: minmax(0, 1fr); }
-}
 @media (max-width: 34rem) {
   .profit-inputs { grid-template-columns: minmax(0, 1fr); }
 }
 
-.profit-modes { display: flex; flex-wrap: wrap; gap: .45rem; margin-bottom: .85rem; }
-.profit-modes [aria-pressed="true"] { background: var(--purple); border-color: var(--purple); color: white; }
-.profit-modes [aria-pressed="true"]:hover { background: var(--purple-dark); }
 .profit-catalog { margin-bottom: .85rem; padding: clamp(.9rem, 2vw, 1.35rem); }
-.profit-catalog-fields { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) minmax(0, 1.6fr); gap: .65rem; margin-block: .7rem; }
 .profit-catalog-fields select { max-width: 100%; }
-.profit-selected-product { padding: .75rem; border-radius: .65rem; background: var(--lavender); overflow-wrap: anywhere; }
-.profit-selected-product h3 { font-weight: 750; }
-.profit-selected-product dl { display: flex; flex-wrap: wrap; gap: .55rem 1.3rem; margin-top: .35rem; font-size: .875rem; }
-.profit-selected-product dt { color: var(--muted); }
-.profit-selected-product dd { font-weight: 650; }
-
-@media (max-width: 34rem) {
-  .profit-catalog-fields { grid-template-columns: minmax(0, 1fr); }
-}
 
 .profit-demo-controls { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem 1rem; margin-bottom: .85rem; padding: .75rem .9rem; border: 1px solid var(--color-line); border-radius: .7rem; background: #f5eef8; }
 .profit-demo-controls p { flex: 1 1 24rem; font-size: .875rem; color: var(--purple-dark); }
-.profit-field-label { display: flex; flex-direction: column; justify-content: flex-end; }
 .profit-field-source { color: var(--muted); font-size: .75rem; font-weight: 500; }
 
 .retailer-header { position: static; }
@@ -529,15 +485,8 @@ footer { background: #f5eef7; border-top: 1px solid var(--color-line); }
 .retailer-steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .75rem; margin-bottom: 1rem; }
 .retailer-steps li { display: flex; align-items: start; gap: .6rem; padding: .75rem; border: 1px solid var(--color-line); border-radius: .8rem; background: white; font-weight: 650; }
 .retailer-steps span { flex: 0 0 1.65rem; text-align: center; border-radius: 50%; color: var(--purple-dark); background: var(--lavender); }
-.retailer-demo-note { margin-bottom: 1rem; padding: .85rem 1rem; border-radius: .75rem; background: #fbf1dd; color: #51350e; }
-.retailer-demo-note p { margin-top: .25rem; }
 .retailer-page .profit-inputs { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .85rem; }
-.retailer-page :is(.profit-ledger, .profit-results dt, .profit-advice p, .profit-advice ul, .profit-demo-controls p) { font-size: 1rem; }
-.retailer-page .profit-ledger dd { text-align: end; }
-.retailer-page .profit-autopsy-total { margin-block: .85rem .55rem; }
-.retailer-page .profit-autopsy-total dd { font-size: 1.25rem; }
-.retailer-page .profit-advice p + p, .retailer-page .profit-advice ul + p { margin-top: .55rem; }
-.retailer-result-word { display: block; font-size: .9rem; }
+.retailer-page .profit-demo-controls p { font-size: 1rem; }
 .retailer-page .profit-field-source { font-size: .875rem; }
 .retailer-strategies { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr)); gap: .75rem; margin-top: 1rem; }
 .retailer-strategies li { display: flex; flex-direction: column; gap: .6rem; padding: .85rem; border-radius: .75rem; border: 1px solid var(--color-line); }
@@ -551,6 +500,66 @@ footer { background: #f5eef7; border-top: 1px solid var(--color-line); }
   .retailer-steps { grid-template-columns: minmax(0, 1fr); gap: .45rem; }
 }
 @media (max-width: 500px) {
-  .retailer-page :is(.retailer-summary, .profit-inputs, .profit-results) { grid-template-columns: minmax(0, 1fr); }
+  .retailer-page :is(.retailer-summary, .profit-inputs) { grid-template-columns: minmax(0, 1fr); }
   .retailer-summary .command-metric { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; }
+}
+
+.retailer-page .profit-catalog-fields { display: grid; gap: .75rem; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); margin-block: 1rem; }
+.earnings-product-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 12rem), 1fr)); gap: .75rem; }
+.earnings-product-grid li { min-width: 0; }
+.earnings-product-card {
+  display: flex; flex-direction: column; width: 100%; height: 100%; overflow: hidden; cursor: pointer;
+  text-align: start; border: 2px solid var(--color-line); border-radius: .85rem; background: white;
+}
+.earnings-product-card .product-image { width: 100%; max-height: 11rem; }
+.earnings-product-card:hover { border-color: var(--purple); }
+.earnings-product-card[aria-pressed="true"] { border-color: var(--purple-dark); background: #f7effb; }
+.earnings-card-copy { display: flex; flex: 1; flex-direction: column; gap: .35rem; width: 100%; padding: .75rem; overflow-wrap: anywhere; }
+.earnings-card-copy > span:first-of-type { color: var(--purple-dark); font-weight: 750; }
+.earnings-card-status {
+  display: flex; align-items: center; gap: .3rem; align-self: flex-start; margin-top: auto;
+  padding: .2rem .45rem; border-radius: .35rem; background: var(--lavender); color: var(--purple-dark); font-weight: 650;
+}
+.earnings-product-card[aria-pressed="true"] .earnings-card-status { background: var(--purple-dark); color: white; }
+.earnings-selection {
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: 1.25rem;
+  align-items: center; margin-bottom: 1rem; overflow-wrap: anywhere;
+}
+.earnings-selection .product-image { border-radius: .75rem; }
+.earnings-selection h2:focus-visible { outline: 3px solid #6b388d; outline-offset: 3px; }
+.earnings-selection dl { display: flex; flex-wrap: wrap; gap: .65rem 1.5rem; margin-top: .65rem; }
+.earnings-selection dd { font-weight: 750; }
+.earnings-selection button { margin-top: .85rem; }
+@media (max-width: 600px) {
+  .retailer-page .profit-catalog-fields, .earnings-selection { grid-template-columns: minmax(0, 1fr); }
+  .earnings-product-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .5rem; }
+  .earnings-selection .product-image { max-height: 12rem; }
+  .earnings-card-copy { padding: .5rem; }
+}
+
+.earnings-guide { display: grid; gap: 1rem; max-width: 56rem; margin-inline: auto; }
+.earnings-guide h2 { margin-bottom: .5rem; }
+.earnings-result { background: #faf5fc; }
+.earnings-result h2:focus-visible { outline: 3px solid #6b388d; outline-offset: 3px; }
+.earnings-outcome { display: flex; flex-wrap: wrap; align-items: baseline; gap: .15rem .8rem; margin-block: .35rem; overflow-wrap: anywhere; }
+.earnings-outcome strong { font-size: clamp(2rem, 6vw, 3.5rem); line-height: 1.2; }
+.earnings-outcome span { font-weight: 750; }
+.earnings-totals { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr)); gap: .75rem; margin-top: 1rem; }
+.earnings-totals > div { border: 1px solid var(--color-line); border-radius: .75rem; background: white; padding: .75rem; overflow-wrap: anywhere; }
+.earnings-totals dd { font-size: 1.25rem; font-weight: 750; }
+.earnings-bars { display: grid; gap: .85rem; margin-top: .75rem; }
+.earnings-bars > div { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .35rem .75rem; }
+.earnings-bars dd { font-weight: 750; }
+.earnings-bar { grid-column: 1 / -1; background: var(--lavender); height: .65rem; border-radius: 1rem; }
+.earnings-bar span { display: block; height: 100%; border-radius: inherit; background: #764ba0; }
+.earnings-sliders { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; margin-top: 1rem; }
+.earnings-sliders label { display: grid; border: 1px solid var(--color-line); border-radius: .75rem; padding: .75rem; min-width: 0; }
+.earnings-sliders label > span { display: flex; flex-wrap: wrap; justify-content: space-between; gap: .25rem .75rem; font-weight: 700; }
+.earnings-sliders input { width: 100%; height: 44px; accent-color: var(--purple-dark); }
+.earnings-sliders small { color: var(--muted); font-size: .875rem; }
+.earnings-suggestions { display: flex; flex-wrap: wrap; gap: .55rem; margin-top: 1rem; }
+.earnings-suggestions h3 { width: 100%; font-weight: 750; }
+.earnings-suggestions button { text-align: start; }
+@media (max-width: 560px) {
+  .earnings-sliders { grid-template-columns: minmax(0, 1fr); }
 }

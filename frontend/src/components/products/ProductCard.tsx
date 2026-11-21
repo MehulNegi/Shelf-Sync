@@ -1,16 +1,10 @@
-import { Check, Laptop, Minus, Package, Plus, Shirt, ShoppingBasket, type LucideIcon } from 'lucide-react'
-import { useState } from 'react'
+import { Check, Minus, Plus } from 'lucide-react'
 import { formatPrice } from '../../lib/format-price'
-import { baseUrl, isMockMode } from '../../services/backend'
 import type { ReservationDisplay } from '../../services/reservations'
-import { productImageCandidates } from '../../services/product-images'
+import { ProductImage } from './ProductImage'
 import { cities, type Product } from '../../types/products'
 import { ReservationCountdown } from '../cart/ReservationCountdown'
 import { Card } from '../ui/card'
-
-const categoryIcons = new Map<string, LucideIcon>([
-  ['electronics', Laptop], ['apparel', Shirt], ['groceries', ShoppingBasket],
-])
 
 interface ProductCardProps {
   product: Product
@@ -25,23 +19,11 @@ interface ProductCardProps {
 }
 
 export function ProductCard({ product, quantity, onAdd, onDetails, showDescription, reservationMode, reservationPending, reservation, addDisabled }: ProductCardProps) {
-  const candidates = productImageCandidates(product, isMockMode ? undefined : baseUrl, window.location.origin)
-  const PlaceholderIcon = categoryIcons.get(product.category) ?? Package
-  const [failedImages, setFailedImages] = useState<string[]>([])
-  const image = candidates.find((url) => !failedImages.includes(url))
   const atLimit = reservationMode ? quantity >= 99 : quantity >= product.stock
   const canAdd = product.available && !atLimit && !addDisabled
   return (
     <Card className="product-card" data-available={product.available}>
-      <div className={`product-image ${product.category}`}>
-        {image
-          ? <img key={image} src={image} alt={product.name} width="300" height="300" decoding="async"
-              onError={() => setFailedImages((urls) => [...urls, image])} />
-          : <div className="image-placeholder">
-              <span className="placeholder-icon"><PlaceholderIcon size={32} aria-hidden="true" /></span>
-              <span>Image unavailable</span>
-            </div>}
-      </div>
+      <ProductImage product={product} />
       <div className="product-body">
         <p className="product-category capitalize">{product.category}</p>
         <h3>{onDetails ? (
