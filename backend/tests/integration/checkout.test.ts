@@ -156,12 +156,14 @@ test('PostgreSQL checkout integration', { skip: process.env.RUN_DB_TESTS !== '1'
       FOR EACH ROW WHEN (NEW.product_id = '${id}') EXECUTE FUNCTION reject_test_order_item()`);
     try {
       const before = (await pool.query('SELECT count(*)::int AS count FROM orders')).rows[0].count;
+      const historyBefore = (await pool.query('SELECT count(*)::int AS count FROM order_status_history')).rows[0].count;
       const response = await checkout([{ productId: id, quantity: 1 }]);
       assert.equal(response.statusCode, 500);
       assert.deepEqual(await inventory(id), { quantity: 3, version: 7 });
       assert.equal((await events(id)).length, 0);
       assert.equal(await orderCount(id), 0);
       assert.equal((await pool.query('SELECT count(*)::int AS count FROM orders')).rows[0].count, before);
+      assert.equal((await pool.query('SELECT count(*)::int AS count FROM order_status_history')).rows[0].count, historyBefore);
     } finally { await pool.query('DROP TRIGGER reject_test_order_item ON order_items'); }
   });
 
@@ -176,6 +178,8 @@ test('PostgreSQL checkout integration', { skip: process.env.RUN_DB_TESTS !== '1'
       assert.equal(responses.find(response => response.statusCode === 409)!.json().error.code, 'INSUFFICIENT_STOCK');
       assert.deepEqual(await inventory(id), { quantity: 0, version: 8 });
       assert.equal(await orderCount(id), 1);
+      assert.equal((await pool.query(`SELECT count(*)::int AS count FROM order_status_history h
+        JOIN order_items oi ON oi.order_id = h.order_id WHERE oi.product_id = $1 AND h.status = 'confirmed'`, [id])).rows[0].count, 1);
       assert.equal((await events(id)).length, 1);
       assert.equal((await events(id))[0]!.payload.quantity, 0);
     }

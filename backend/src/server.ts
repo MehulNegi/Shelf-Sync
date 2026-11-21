@@ -17,7 +17,8 @@ async function start() {
     ? new SearchProductRepository(new SearchProjection(searchClient, searchConfig.index), postgres,
       () => console.warn('OpenSearch search failed; using PostgreSQL substring search.')) : postgres;
   if (!searchClient) console.warn('OPENSEARCH_URL is unset; product search uses PostgreSQL substring matching.');
-  const app = buildApp({ products, orders: new PgOrderRepository(pool), frontendOrigin: config.frontendOrigin, logger: true });
+  const orders = new PgOrderRepository(pool);
+  const app = buildApp({ products, orders, tracking: orders, frontendOrigin: config.frontendOrigin, logger: true });
   app.addHook('onClose', async () => { try { await searchClient?.close(); } finally { await pool.end(); } });
   try {
     await pool.query('SELECT 1');

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { Pool } from 'pg';
-import type { OrderCreated, OrderDetails, OrderInput, OrderRepository } from '../types/order.js';
+import type { OrderCreated, OrderDetails, OrderInput, OrderRepository, OrderTracking, OrderTrackingRepository } from '../types/order.js';
 import { ApiError } from '../services/products.js';
 
 function toPaise(rupees: string): bigint {
@@ -12,7 +12,7 @@ function toRupees(paise: bigint): string {
 }
 const insufficientStock = () => new ApiError(409, 'INSUFFICIENT_STOCK', 'Not enough stock available');
 
-export class PgOrderRepository implements OrderRepository {
+export class PgOrderRepository implements OrderRepository, OrderTrackingRepository {
   constructor(private readonly pool: Pool) {}
 
   async checkout(input: OrderInput): Promise<OrderCreated> {
@@ -77,6 +77,27 @@ export class PgOrderRepository implements OrderRepository {
     return {
       id: order.id, city: order.city, status: order.status, total: Number(order.total),
       items: rows.map(row => ({ productId: row.product_id, name: row.name, quantity: row.quantity, unitPrice: Number(row.unit_price) }))
+    };
+  }
+
+  async findTrackingById(id: string): Promise<OrderTracking | undefined> {
+    // One statement gives the current status and history a consistent snapshot.
+    const { rows } = await this.pool.query<{
+      id: string; status: OrderTracking['status']; created_at: Date;
+      history_status: OrderTracking['status'] | null; occurred_at: Date | null;
+      recorded_at: Date | null; source: OrderTracking['history'][number]['source'] | null;
+    }>(`SELECT o.id, o.status, o.created_at, h.status AS history_status,
+      h.occurred_at, h.recorded_at, h.source FROM orders o
+      LEFT JOIN order_status_history h ON h.order_id = o.id
+      WHERE o.id = $1 ORDER BY h.recorded_at, h.id`, [id]);
+    const order = rows[0];
+    if (!order) return undefined;
+    return {
+      orderId: order.id, status: order.status, createdAt: order.created_at.toISOString(),
+      history: rows.filter(row => row.history_status !== null).map(row => ({
+        status: row.history_status!, occurredAt: row.occurred_at?.toISOString() ?? null,
+        recordedAt: row.recorded_at!.toISOString(), source: row.source!
+      }))
     };
   }
 }

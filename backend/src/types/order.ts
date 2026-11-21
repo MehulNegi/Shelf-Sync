@@ -19,3 +19,18 @@ export interface OrderRepository {
   checkout(input: OrderInput): Promise<OrderCreated>;
   findById(id: string): Promise<OrderDetails | undefined>;
 }
+
+export interface OrderTracking {
+  orderId: string;
+  status: OrderDetails['status'];
+  createdAt: string;
+  history: {
+    status: OrderDetails['status'];
+    occurredAt: string | null;
+    recordedAt: string;
+    source: 'order_created' | 'legacy_snapshot';
+  }[];
+}
+export interface OrderTrackingRepository {
+  findTrackingById(id: string): Promise<OrderTracking | undefined>;
+}
