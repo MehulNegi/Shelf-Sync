@@ -82,6 +82,12 @@ Set these variables in the Vercel **Production** environment, then redeploy so t
 
 `vercel.mjs` generates the external rewrite at build time. Only the relative `/api` base goes into the browser bundle. The rewrite keeps the original API path and leaves the HTTP request and upstream response handling to Vercel. No CORS allowances or forwarded-header overrides are configured on the frontend proxy. API responses are marked `no-store`. A Vercel environment with both API settings unset can still build a mock storefront. Leave previews in mock mode unless they have a separately authorized staging backend and matching Origin configuration. Local `npm run dev` continues to support direct loopback and mock modes. [Vercel programmatic configuration](https://vercel.com/docs/project-configuration/vercel-ts) · [Vercel external rewrites](https://vercel.com/docs/routing/rewrites)
 
+### Verify gateway function discovery
+
+Use Vercel Root Directory `frontend` and its programmatic `vercel.mjs` configuration. The four protected rewrites target the functions under `api/reservation-gateway/`. Keep this directory free of underscore-prefixed segments because Vercel excludes those paths from function discovery.
+
+After an approved manual deployment, check that all four functions appear in the deployment. Send a cookie-free GET to `/api/cart/reservations`. A configured, enabled gateway should reach Render and return `401 CART_SESSION_REQUIRED`. A structured gateway or backend rejection identifies a configuration blocker, while Vercel `404 NOT_FOUND` means the route still missed its function. Confirm `/api/health` and `/api/products?city=pune` still reach Render before testing writes on isolated stock.
+
 ### Enable the 30-second demo manually
 
 1. Have the backend owner prepare B14 commit `a0fe162` on a restricted Render instance with isolated commerce data. Use `RESERVATION_SIGNED_GATEWAY=true`, `RESERVATION_GATEWAY_AUDIENCE` equal to the canonical Render HTTPS origin, `FRONTEND_ORIGIN` and `RESERVATION_BROWSER_API_ORIGIN` equal to the exact test storefront origin, `RESERVATION_TTL_SECONDS=30`, and `RESERVATION_ALLOW_LOCAL_HTTP=false`. Leave `RESERVATION_HTTPS_PROXY_IPS` unset. Retain the rate-limit key and cutoff. Provision the same dedicated server-only `RESERVATION_GATEWAY_SECRET` on Render and Vercel. Keep public admin and B8 off.

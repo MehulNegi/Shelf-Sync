@@ -72,11 +72,22 @@ test('protected function paths are excluded from the external rewrite only in ga
   assert.deepEqual(rules.slice(0, -1).map(r => r.source), [
     '/api/cart/session', '/api/cart/reservations', '/api/cart/reservations/release', '/api/orders',
   ])
-  assert(rules.slice(0, -1).every(r => r.destination.startsWith('/api/_reservation/')))
+
   const rule = rules.at(-1)
   const match = new RegExp('^' + rule.source.replace(':path', '') + '$')
-  for (const path of ['/api/cart/session', '/api/cart/reservations', '/api/cart/reservations/release', '/api/orders', '/api/orders/']) {
+  for (const path of ['/api/cart/session', '/api/cart/reservations', '/api/cart/reservations/release', '/api/orders', '/api/orders/', '/api/reservation-gateway/reservations', '/api/_reservation/reservations']) {
     assert(!match.test(path), path)
   }
   for (const path of ['/api/orders/ord_123/tracking', '/api/products', '/api/ready']) assert(match.test(path), path)
+})
+
+test('every protected rewrite targets a discoverable Vercel function entry point', async () => {
+  const env = { RENDER_API_ORIGIN: upstream, VITE_API_BASE_URL: '/api', RESERVATION_GATEWAY_ROUTING: 'true' }
+  const config = vercelConfig(env)
+  assert.equal(config.git.deploymentEnabled['fix/vercel-reservation-discovery'], false)
+  for (const { destination } of config.rewrites.slice(0, -1)) {
+    assert.match(destination, /^\/api\/reservation-gateway\/[a-z]+$/)
+    const entry = await import(new URL(`..${destination}.mjs`, import.meta.url))
+    assert.equal(typeof entry.default.fetch, 'function')
+  }
 })

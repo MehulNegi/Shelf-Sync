@@ -1,5 +1,5 @@
 const apiPath = '/api/:path*'
-const git = { deploymentEnabled: { 'feature/b14-reservation-gateway': false } }
+const git = { deploymentEnabled: { 'feature/b14-reservation-gateway': false, 'fix/vercel-reservation-discovery': false } }
 
 export function vercelConfig(env) {
   const upstream = env.RENDER_API_ORIGIN?.trim()
@@ -22,12 +22,12 @@ export function vercelConfig(env) {
 
   const signed = env.RESERVATION_GATEWAY_ROUTING === 'true'
   const protectedRoutes = signed ? [
-    { source: '/api/cart/session', destination: '/api/_reservation/session' },
-    { source: '/api/cart/reservations', destination: '/api/_reservation/reservations' },
-    { source: '/api/cart/reservations/release', destination: '/api/_reservation/release' },
-    { source: '/api/orders', destination: '/api/_reservation/orders' },
+    { source: '/api/cart/session', destination: '/api/reservation-gateway/session' },
+    { source: '/api/cart/reservations', destination: '/api/reservation-gateway/reservations' },
+    { source: '/api/cart/reservations/release', destination: '/api/reservation-gateway/release' },
+    { source: '/api/orders', destination: '/api/reservation-gateway/orders' },
   ] : []
-  const source = signed ? '/api/:path((?!cart(?:/|$)|orders/?$|_reservation(?:/|$)).*)' : apiPath
+  const source = signed ? '/api/:path((?!cart(?:/|$)|orders/?$|reservation-gateway(?:/|$)|_reservation(?:/|$)).*)' : apiPath
   return {
     framework: 'vite',
     git,
