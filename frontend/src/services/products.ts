@@ -1,10 +1,9 @@
-import { mockProducts } from '../mocks/products'
-import type { ProductQuery, ProductsResponse } from '../types/products'
-
-const baseUrl: string = (import.meta.env.VITE_API_BASE_URL ?? '').trim().replace(/\/+$/, '')
+import { mockProduct, mockProducts } from '../mocks/products'
+import type { City, Product, ProductQuery, ProductsResponse } from '../types/products'
+import { baseUrl, isMockMode, requestJson } from './backend'
 
 export async function getProducts(query: ProductQuery, signal: AbortSignal): Promise<ProductsResponse> {
-  if (!baseUrl) return mockProducts(query)
+  if (isMockMode) return mockProducts(query)
 
   const params = new URLSearchParams({ city: query.city })
   for (const key of ['q', 'category', 'minPrice', 'maxPrice'] as const) {
@@ -12,12 +11,13 @@ export async function getProducts(query: ProductQuery, signal: AbortSignal): Pro
     if (value !== undefined && value !== '') params.set(key, String(value))
   }
 
-  const response = await fetch(`${baseUrl}/api/products?${params}`, { signal })
-  if (!response.ok) {
-    const body = await response.json().catch(() => null)
-    throw new Error(body?.error?.message || `Unable to load products (HTTP ${response.status}).`)
-  }
-  return response.json()
+  return requestJson<ProductsResponse>(`/products?${params}`, 200, { signal })
+}
+
+export async function getProduct(id: string, city: City, signal: AbortSignal): Promise<Product> {
+  if (isMockMode) return mockProduct(id, city)
+  return requestJson<Product>(`/products/${encodeURIComponent(id)}?${new URLSearchParams({ city })}`,
+    200, { signal })
 }
 
 export function productImageUrl(imageUrl: string): string {

@@ -1,13 +1,20 @@
 import { ChevronDown, MapPin, PackageSearch, SlidersHorizontal } from 'lucide-react'
 import { useDeferredValue, useMemo, useState } from 'react'
+import { CartDialog } from '../components/cart/CartDialog'
 import { Header } from '../components/layout/Header'
 import { ProductCard } from '../components/products/ProductCard'
+import { ProductDetails } from '../components/products/ProductDetails'
 import { Input } from '../components/ui/input'
+import { useCart } from '../hooks/use-cart'
 import { useProducts } from '../hooks/use-products'
-import { categories, cities, type City, type ProductQuery } from '../types/products'
+import { categories, cities, type Product, type ProductQuery } from '../types/products'
 
 export function Storefront() {
-  const [city, setCity] = useState<City>('pune')
+  const [cart, dispatch] = useCart()
+  const { city } = cart
+  const items = cart.itemsByCity[city]
+  const cartCount = items.reduce((count, item) => count + item.quantity, 0)
+  const [dialog, setDialog] = useState<{ kind: 'cart' } | { kind: 'product'; id: string }>()
   const [search, setSearch] = useState('')
   const [category, setCategory] = useState('')
   const [min, setMin] = useState('')
@@ -28,6 +35,23 @@ export function Storefront() {
   const data = result && 'data' in result ? result.data : undefined
   const error = result && 'error' in result ? result.error : undefined
 
+  function quantityOf(productId: string) {
+    return items.find((item) => item.productId === productId)?.quantity ?? 0
+  }
+
+  function addProduct(product: Product) {
+    if (!product.available) return
+    dispatch({ type: 'adjust', city: product.city, productId: product.id, delta: 1, stock: product.stock })
+  }
+
+  function refreshCatalog() {
+    setAttempt((value) => value + 1)
+  }
+
+  function closeDialog() {
+    setDialog(undefined)
+  }
+
   function clearFilters() {
     setSearch('')
     setCategory('')
@@ -37,7 +61,9 @@ export function Storefront() {
 
   return (
     <>
-      <Header city={city} onCityChange={setCity} search={search} onSearchChange={setSearch} />
+      <Header city={city} onCityChange={(selected) => dispatch({ type: 'selectCity', city: selected })}
+        cartCount={cartCount} onOpenCart={() => setDialog({ kind: 'cart' })}
+        search={search} onSearchChange={setSearch} />
       <main className="shell">
         <section className="hero" aria-labelledby="store-heading">
           <p className="hero-city"><MapPin size={17} aria-hidden="true" /> Shopping in {cities[city]}</p>
@@ -90,7 +116,7 @@ export function Storefront() {
           ) : error ? (
             <div className="state-panel">
               <p role="alert">{error}</p>
-              <button className="text-button" type="button" onClick={() => setAttempt((value) => value + 1)}>Try again</button>
+              <button className="text-button" type="button" onClick={refreshCatalog}>Try again</button>
             </div>
           ) : !data ? (
             <div className="product-grid" aria-hidden="true">
@@ -105,7 +131,10 @@ export function Storefront() {
             </div>
           ) : (
             <div className="product-grid">
-              {data.products.map((product) => <ProductCard key={product.id} product={product} />)}
+              {data.products.map((product) => (
+                <ProductCard key={product.id} product={product} quantity={quantityOf(product.id)} onAdd={addProduct}
+                  onDetails={() => setDialog({ kind: 'product', id: product.id })} />
+              ))}
             </div>
           )}
         </section>
@@ -113,6 +142,17 @@ export function Storefront() {
       <footer>
         <div className="shell footer-inner"><strong>ShelfSync</strong><a href="#top">Back to top</a></div>
       </footer>
+      {dialog?.kind === 'product' && (
+        <ProductDetails id={dialog.id} city={city} quantity={quantityOf(dialog.id)}
+          onAdd={addProduct} onClose={closeDialog} />
+      )}
+      {dialog?.kind === 'cart' && (
+        <CartDialog city={city} items={items}
+          onAdjust={(productId, delta, stock) => dispatch({ type: 'adjust', city, productId, delta, stock })}
+          onRemove={(productId) => dispatch({ type: 'remove', city, productId })}
+          onPlaced={() => dispatch({ type: 'clear', city })}
+          refreshCatalog={refreshCatalog} onClose={closeDialog} />
+      )}
     </>
   )
 }
