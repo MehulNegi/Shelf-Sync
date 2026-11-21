@@ -484,3 +484,261 @@ Example (401):
 - Current order statuses and history do not support a live fulfillment progression. Keep their persisted values; do not synthesize processing/shipping/delivery transitions.
 - The outbox has only `id`, `event_type`, `payload`, `created_at` and `published_at`. It has no reliable order association for current checkout events, per-event retry/error history, consumer completion or indexing acknowledgement. Adding those capabilities requires separate persistence/lifecycle design; they must not be inferred or displayed as established facts.
 - Existing orders/events indexes may need additional indexes for efficient filtered keyset queries; new indexes, auth wiring and endpoint implementation belong to a later backend task. No database or application behavior changes are authorized by this section alone.
+
+## 10. Smart Cart Reservations — Proposed Design, Not Implemented
+
+This section proposes API, database and event changes for a later implementation. It does not enable reservations, install migrations, change current responses, or claim reservation/concurrency tests have run. Sections 1–9 are preserved. In particular, today's checkout accepts only `city` and `items`; the additional request field below is not yet accepted. Some section 9 implementation-status text predates the implemented admin module; this proposal does not revise its schemas or access restrictions.
+
+### 10.1 Observed baseline and compatibility boundary
+
+- `inventory` has primary key `(product_id, city)`, physical `quantity >= 0`, monotonically increasing `version`, and `updated_at`. There is no reservation/session schema or reserved-stock column.
+- Current checkout combines duplicate products, updates city inventory in product-ID order inside one checked-out PostgreSQL transaction, calculates INR prices from `products`, creates a confirmed order/items and inventory outbox records, then commits. Initial order history is recorded by the existing order-insert trigger.
+- Existing `inventory.changed` schema-version-1 events contain physical `quantity`, not available stock. The publisher validates version 1, publishes to `inventory-events` with key `productId:city`, and records `published_at` only after acknowledgement. The consumer validates version 1, updates the product-city OpenSearch document only for a greater `inventoryVersion`, and commits offsets after processing.
+- PostgreSQL product reads and catalog bootstrap currently use physical quantity. OpenSearch documents expose `stock` and `available` from that quantity. Successful OpenSearch searches currently return projection stock directly; product details and the fallback path use PostgreSQL.
+- The frontend persists desired quantities by city in local storage (`shelfsync.cart.v1:<backend>`). It has no reservation identity or expiry state, and currently caps increases using displayed stock. Persistence is cart intent, not an inventory guarantee.
+
+Keep physical inventory and existing admin metrics unchanged. Add reservation tables and optional reservation-aware checkout without renaming existing columns or changing successful order/tracking JSON. Before enabling holds, upgrade **every** stock-writing checkout instance, PostgreSQL product reader, bootstrap, publisher and consumer together as described in section 10.9. An old direct-decrement checkout instance could otherwise sell held units. Backward-compatible request syntax alone is insufficient for a safe rollout.
+
+### 10.2 Time, ownership and browser security
+
+`RESERVATION_TTL_SECONDS` is a server-side integer, default **30** for the hackathon, allowed range 5–300. Reject invalid configuration at startup; never accept TTL, expiry, prices, ownership or available-stock values from clients. Store each new deadline once; configuration changes affect future holds only. All response timestamps are ISO 8601 UTC ending in `Z`, with millisecond display precision; preserve PostgreSQL precision for comparisons.
+
+A reservation is one product-city hold owned by an anonymous browser session. Multiple products use multiple independent holds; a batch creates them at one database decision time. This avoids extending an existing product's deadline when another product is added. Each deadline is `created_at + configured TTL`, capped by the session's fixed expiry. The hold starts when PostgreSQL accepts allocation, not at a client timestamp or before a network request reaches the server. The Add to Cart action must issue that request immediately and show a pending state until acknowledgement.
+
+Proposed session setup: `POST /api/cart/session`, body `{}`, no query parameters. Return 201 for a newly issued session, or 200 for the same still-valid session, with exactly:
+
+```json
+{
+  "serverTime": "2026-11-21T12:00:00.000Z",
+  "sessionExpiresAt": "2026-11-22T12:00:00.000Z"
+}
+```
+
+The server generates at least 32 cryptographically random bytes as an opaque cookie credential and stores only its SHA-256 digest. A separate internal UUID identifies the session in foreign keys. Neither identifier supplied in a request body, a caller-selected user ID, an admin role header, nor a reservation UUID grants ownership. Do not return the cookie secret in JSON or URLs. A missing/expired credential cannot read, release or consume old holds, even if their public IDs are known.
+
+For HTTPS deployments, issue a host-only `__Host-shelfsync_cart` cookie with `Secure; HttpOnly; SameSite=Strict; Path=/`, no `Domain`, and an expiry matching the fixed 24-hour session lifetime. Reusing a valid session does not slide that lifetime or change hold deadlines. Use a same-origin HTTPS frontend/API deployment, or explicitly configured same-site HTTPS origins; do not relax cookie policy to accommodate arbitrary cross-site hosting. Browser Fetch must use `credentials: 'include'` for cross-origin same-site calls. Credentialed CORS is restricted to the exact configured frontend origin on these routes and reservation-aware checkout, never `*` or a reflection of arbitrary origins. See [browser cookie attribute rules](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Set-Cookie).
+
+Every cookie-authorized mutation, including session issuance and reservation-aware checkout, requires `Content-Type: application/json` and an `Origin` exactly equal to the configured frontend origin. Reject missing/`null`/foreign mutation origins. GETs do not mutate or renew anything; if an Origin is supplied it must also match. These checks supplement the host-only HttpOnly cookie and strict same-site policy; CORS alone is not authorization. Return `Cache-Control: no-store` on session/reservation responses and reservation-aware checkout errors. Redact Cookie, Set-Cookie, session digests, authorization values and complete request headers/bodies from logs and tracing.
+
+For a local HTTP hackathon only, propose `RESERVATION_ALLOW_LOCAL_HTTP=true` (default false): a separate host-only HttpOnly `shelfsync_cart_dev` cookie with `SameSite=Strict; Path=/`, without `Secure`, permitted only for non-production loopback bindings, real loopback peers/Hosts, exact loopback frontend origin and no forwarding headers. Use the same hostname for browser and API, for example `127.0.0.1` on both ports 5173 and 3000. Never accept the dev cookie in HTTPS production mode. This is a proposed scoped development exception, not a global TLS or authentication bypass. Existing admin JWT/default-off/local-demo gates remain unchanged; cart cookies grant **no admin access**, and admin local-demo still cannot be exposed through LAN, tunnels or proxies.
+
+### 10.3 Availability and reservation states
+
+For a product-city row at PostgreSQL observation time `T`:
+
+```text
+physicalQuantity = inventory.quantity
+reservedQuantity(T) = SUM(quantity WHERE state = 'active' AND expires_at > T)
+availableQuantity(T) = physicalQuantity - reservedQuantity(T)
+```
+
+All sums are scoped to that exact product and city. The allocator must maintain `0 <= reservedQuantity(T) <= physicalQuantity`; a broken invariant is an operational error, not a reason to silently clamp negative results. Missing inventory means zero reservable units. Holds do not decrement physical inventory. Consuming an owned hold reduces physical stock and removes its active reserved quantity in the same transaction, so it does not deduct availability twice.
+
+States are `active`, `expired`, `released`, and `consumed`. Allowed transitions are `active → expired`, `active → released`, and `active → consumed`; terminal rows cannot be reactivated. A fresh explicit reservation creates a new UUID. A row stored as active but with `expires_at <= T` is **effectively expired** for reads and allocation, even before cleanup changes its stored state. At exact equality it is expired. No background worker, Kafka message or OpenSearch refresh is required for PostgreSQL to make those units available again.
+
+GET responses use the effective state. For an unmaterialized expiry, `updatedAt` still means the last persisted row change; do not fabricate an update time. Clients use `serverTime` and the immutable `expiresAt` for a countdown, then reconcile on focus/refresh/checkout. The browser's wall clock cannot grant or extend a hold.
+
+### 10.4 Proposed reservation APIs and exact response model
+
+All endpoints in this subsection require the owning session cookie. Unknown keys, unsupported cities, blank/over-100-character product IDs, malformed UUIDs, repeated query keys, nonnumeric/fractional/nonpositive quantities and client expiry/price/user-ID fields are 400. JSON quantities must be numbers, not coerced strings or booleans. No query parameters are allowed except the optional city on GET. Maximum JSON body is 64 KiB.
+
+Every successful create/update/release response uses exactly this envelope; examples describe a single line but the array contains every requested resulting hold:
+
+```json
+{
+  "serverTime": "2026-11-21T12:00:00.000Z",
+  "reservations": [
+    {
+      "reservationId": "44444444-4444-4444-8444-444444444444",
+      "productId": "prod_001",
+      "city": "pune",
+      "quantity": 1,
+      "status": "active",
+      "createdAt": "2026-11-21T12:00:00.000Z",
+      "expiresAt": "2026-11-21T12:00:30.000Z",
+      "updatedAt": "2026-11-21T12:00:00.000Z",
+      "requiresReservation": false,
+      "orderId": null
+    }
+  ]
+}
+```
+
+Every field shown is required. `quantity` is the stored positive hold quantity, not current public availability. `status` uses the four states above. `requiresReservation` is true for expired/released rows, false for active/consumed rows; a consumed line belongs to a completed order and should be removed from the purchased cart after confirmation. `orderId` is the persisted order ID only for consumed rows, otherwise null. IDs are server-generated UUIDs. Sort reservation arrays by city, product ID, then reservation ID in binary ascending order. No prices, totals, customer identity or credentials are returned here; prices remain PostgreSQL checkout inputs.
+
+| Method and path | Request | Successful behavior |
+| --- | --- | --- |
+| `POST /api/cart/reservations` | `{"city":"pune","items":[{"productId":"prod_001","quantity":1}]}` | 201 with the envelope above after committing allocation. `items` has 1–100 entries, each quantity 1–99; combine duplicate product IDs by summing before checking limits. At most 20 distinct active products and 100 reserved units per session across all cities. All requested products succeed together or none do. |
+| `GET /api/cart/reservations?city=pune` | Optional supported `city`, no body. | 200 with the same envelope, including active and terminal **latest-generation** rows for the owner, optionally restricted by city. Return an empty array when none exist. One latest row per product-city; at most 100 distinct product-city pairs over one session's lifetime, hence no unbounded history/pagination. Older generations are retained internally, not listed. No expiration reset or implicit re-reservation. |
+| `PATCH /api/cart/reservations` | `{"city":"pune","items":[{"reservationId":"44444444-4444-4444-8444-444444444444","quantity":2}]}` | 200 with the resulting requested holds. 1–20 unique owned IDs, target quantities 1–99; quantities are absolute, not increments. All rows must be active at the decision time and match the city. An increase allocates only the difference; a decrease releases the difference immediately. Deadlines and `createdAt` never change. Identical targets are no-ops. Zero uses the explicit release endpoint. All-or-nothing. |
+| `POST /api/cart/reservations/release` | `{"reservationIds":["44444444-4444-4444-8444-444444444444"]}` | 200 with the resulting requested rows, 1–100 unique owned IDs. Active unexpired holds become released immediately. Effectively expired rows remain expired; released/consumed rows are idempotent no-ops, never order cancellations or stock refunds. A foreign/unknown ID makes the entire batch 404 with no releases. |
+
+Create is for a new hold, not an extension endpoint. Creating an already active product-city returns 409 `RESERVATION_EXISTS`; the frontend must PATCH its existing hold for an increase. PATCH uses server-stored quantity and expiry, not a product-card stock estimate. Independent tabs share the browser session: mutations are serialized, absolute target updates use last successful write semantics, and tabs must reconcile returned state rather than adding optimistic deltas twice.
+
+After duplicate normalization, each product's requested quantity must still be 1–99 (otherwise 400). Exceeding the separate 20-active-product or 100-total-reserved-unit session caps is 409 `RESERVATION_LIMIT`. PATCH duplicate reservation IDs are rejected rather than summed.
+
+**Recover expired items:** after an explicit customer “Reserve again” action, POST the same city/product/desired quantity with a **new** idempotency key. The old expired/released row remains terminal; success creates a new UUID and new deadline. There is no refresh/keep-alive endpoint. A failed reacquisition leaves the desired item in the cart requiring a reservation. An uncertain network result must first retry the original key or GET state, not automatically mint a new hold.
+
+To prevent repeated Add/refresh/release from continuously resetting a hold, the same session/product-city cannot create another generation until **five seconds after the previous generation's original `expiresAt`**, even if released or consumed early. Return 429 `RESERVATION_COOLDOWN` with an integer `Retry-After` until eligible. PATCH, page refresh and retries never bypass it. This intentionally introduces a short reacquisition gap. Other sessions can reserve released/expired stock immediately. Anonymous session/IP admission limits below also apply; this is bounded abuse resistance, not a claim that anonymous browsers provide Sybil-proof identity.
+
+Only one city may have unexpired active holds in a session. A create/PATCH trying to mix cities returns 409 `RESERVATION_CITY_CONFLICT`. On a city switch, release all old-city active holds and wait for acknowledgement (or reconcile an uncertain response), then select the new city and explicitly reserve its items. Keep the old city's desired items in the existing per-city cart, now unreserved. There is no automatic transfer or cross-city stock substitution. Releasing old-city holds and allocating new-city holds are separate actions; a new-city failure does not resurrect old holds. A customer may also wait for old holds to expire. Read-only browsing in another city is unrestricted.
+
+No partial success or HTTP 207 is defined. Unknown products/missing city inventory and inadequate available units return the standard 409 `INSUFFICIENT_STOCK`; the batch has no new holds, quantity changes, order or allocation events. On removal, release is sent immediately. Local UI may remove the desired item promptly but must track a pending release until acknowledged; if offline, immediate server release cannot be promised and the original deadline is the safety bound. Do not rely on page-unload requests for correctness.
+
+### 10.5 Checkout extension and legacy behavior
+
+Propose one optional field on the existing `POST /api/orders`, with the same 201 confirmation JSON and existing order-details/tracking responses:
+
+```json
+{
+  "city": "pune",
+  "items": [{ "productId": "prod_001", "quantity": 1 }],
+  "reservationIds": ["44444444-4444-4444-8444-444444444444"]
+}
+```
+
+When `reservationIds` is present, require the session cookie, mutation Origin check and `Idempotency-Key`. It must contain 1–20 unique UUIDs. Combine duplicate `items` as in current checkout. Owned holds must cover **exactly** the normalized products, quantities and single city; do not accept a price/total from the client, consume partial holds, silently buy an expired line as an ordinary order, or leave part of a submitted hold behind. A mismatch is 409 `RESERVATION_MISMATCH`; expiry is 409 `RESERVATION_EXPIRED`; a released hold is 409 `RESERVATION_NOT_ACTIVE`; an already consumed hold under a different key is 409 `RESERVATION_CONSUMED`. An unknown/foreign ID is 404 without disclosing another session's state.
+
+In one PostgreSQL transaction/client, verify ownership and validity after acquiring the locks, read current product prices, decrement physical quantity with its nonnegative guard, create the confirmed order and items, mark all submitted holds consumed with that order ID, insert availability outbox snapshots, and commit. The existing order trigger records real confirmed history. One unavailable/expired line rolls back the **entire** checkout, including quantities, consumed flags, orders, history and outbox writes. The original desired cart remains intact after a rejected checkout. Validity is evaluated at the atomic allocation decision time after waiting for every required lock, not when a button was clicked; a request that expires while waiting cannot consume the hold. Keep transactions short and perform no Kafka/OpenSearch/network calls in them.
+
+For clients omitting `reservationIds`, retain the original request and response formats and no new session requirement. However, legacy checkout must use the same locked allocator and buy only `availableQuantity`, excluding **all** live holds, even ones owned by a cookie on that request. It cannot bypass another browser's reservation or accidentally consume the owner's hold. Use 409 `INSUFFICIENT_STOCK` when unheld units are inadequate. Existing no-reservation checkout/concurrency tests remain valid; add tests mixing both checkout modes. No order status, payment, fulfillment or public order-list API is added.
+
+### 10.6 Proposed PostgreSQL schema and transactional algorithm
+
+Add a backward-compatible migration later; no migration is created by this document. A reservation already represents a line item, so no additional reservation-header/line table is needed.
+
+| Table | Proposed columns and constraints |
+| --- | --- |
+| `cart_sessions` | `id uuid PRIMARY KEY`; `token_hash bytea UNIQUE NOT NULL CHECK (octet_length(token_hash)=32)`; `created_at timestamptz NOT NULL`; `expires_at timestamptz NOT NULL CHECK (expires_at > created_at)`. Fixed 24-hour expiry; cookie secrets are never stored. |
+| `cart_reservations` | `id uuid PRIMARY KEY`; `session_id uuid NOT NULL REFERENCES cart_sessions(id) ON DELETE RESTRICT`; `product_id text NOT NULL`; `city text NOT NULL`; composite FK `(product_id, city) REFERENCES inventory(product_id, city) ON DELETE RESTRICT`; `quantity integer NOT NULL CHECK (quantity BETWEEN 1 AND 99)`; `state text NOT NULL CHECK (state IN ('active','expired','released','consumed'))`; `created_at`, `expires_at`, `updated_at` all `timestamptz NOT NULL`; `order_id text NULL REFERENCES orders(id) ON DELETE RESTRICT`; `CHECK (expires_at > created_at)` and `CHECK ((state = 'consumed') = (order_id IS NOT NULL))`. Allocator enforces expiry no later than session expiry, immutable ownership/product/city/creation/deadline and terminal states. |
+| `cart_idempotency` | `session_id uuid NOT NULL REFERENCES cart_sessions(id) ON DELETE RESTRICT`; `key uuid NOT NULL`; `request_hash bytea NOT NULL CHECK (octet_length(request_hash)=32)`; `http_status smallint NOT NULL`; `response jsonb NOT NULL`; `created_at timestamptz NOT NULL`; primary key `(session_id, key)`. Store only completed safe JSON responses, never cookies or secrets. Retain until at least 24 hours after session expiry. |
+| `reservation_rate_limits` | Bounded PostgreSQL admission counters keyed by scope (`session`, `ip` or `session_issue`), opaque key digest and UTC window start, with count and expiry. Unique `(scope, key_digest, window_start)`; atomic increment-and-check; expiry index and batched deletion. Use a dedicated server-only `RESERVATION_RATE_LIMIT_SECRET` with at least 32 random bytes for HMAC of normalized socket/trusted-proxy IPs; never trust arbitrary `X-Forwarded-For`. No new cache/service is needed. |
+
+Proposed reservation indexes: unique `(session_id, product_id, city) WHERE state='active'`; `(product_id, city, expires_at) INCLUDE (quantity) WHERE state='active'` for live sums; `(expires_at, product_id, city) WHERE state='active'` for expiry scans; `(session_id, product_id, city, created_at DESC, id DESC)` for latest generation and cooldown checks; and `order_id` for reconciliation. Do not put `now()` in a partial-index predicate; filter `expires_at > T` in the query. An effectively expired row must be materialized before inserting the next generation under the partial unique constraint. Preserve current physical quantity/price constraints and inventory version range checks.
+
+Use `READ COMMITTED`, one checked-out `pg` client and parameterized SQL. **Every** allocation, quantity update, release, legacy/reserved checkout and inventory adjustment must use the same inventory-row locking discipline; a cross-row live-reservation sum cannot be protected by a simple CHECK constraint alone. For cookie-authorized mutations:
+
+1. Lock the owning `cart_sessions` row, check the credential/session lifetime and idempotency outcome. This serializes that browser's caps, city gate and competing tab actions. Never acquire another owner's session lock.
+2. Resolve all affected inventory keys without first locking reservation rows, then acquire inventory `FOR UPDATE` locks in binary `(product_id, city)` ascending order. A legacy checkout has no session lock but uses the identical inventory order. Never invert this order or retain locks across HTTP requests.
+3. In a **subsequent SQL statement after the locks have been obtained**, sample PostgreSQL `clock_timestamp()` once as decision time `T`, read live sums/owned rows, and materialize due expiries for the locked keys. Do not use a transaction-start `now()` captured before a lock wait, or an aggregate computed before another purchaser's commit. Read Committed supplies a fresh statement snapshot; the row locks serialize competing allocators. See [PostgreSQL isolation](https://www.postgresql.org/docs/current/transaction-iso.html) and [locking](https://www.postgresql.org/docs/current/explicit-locking.html).
+4. Check the whole proposed resulting set against physical stock, session/unit/city caps and immutable deadlines, then perform all changes. For PATCH, subtract the owner's old live quantity before testing its new target; do not count the same hold twice. For reserved checkout, remove the exact owned holds and decrement physical stock together. Retain a conditional physical-quantity decrement as a final database guard.
+5. Increment `inventory.version` and `updated_at` once per changed product-city and insert one full resulting availability snapshot into `outbox_events` per changed key in that transaction. Include expiry reconciliation in those snapshots, without adding multiple conflicting snapshots at one version. No-op reads/replays/identical PATCH targets do not bump versions. Persist the idempotency result with the successful business writes, then commit.
+
+Reservation row locks, when needed, are acquired **after** inventory locks. Expiring another session's due rows must not acquire that session's parent lock. Cleanup workers take inventory locks first and never request session locks; this avoids a worker holding a reservation row while an owning request holds its session lock waiting for inventory. Expiry is server-driven and does not require the owner's credential. Enforce bounded lock/statement/transaction deadlines and bounded retries of deadlock/serialization failures; retries recheck real time/availability and use the same idempotency key. Exhaustion returns a retryable 503, never a fabricated success.
+
+Read APIs use one PostgreSQL snapshot and one observation time per response, joining only holds live at that time. For read observations, `statement_timestamp()` gives the statement time; `clock_timestamp()` is needed for allocation after lock waits rather than transaction-start time. These functions have distinct semantics documented in [PostgreSQL date/time functions](https://www.postgresql.org/docs/current/functions-datetime.html). An expired hold stops reducing read availability through the time predicate even with no cleanup at all.
+
+### 10.7 Idempotency, cleanup and admission limits
+
+Require `Idempotency-Key: <client-generated UUID>` on create, PATCH, release and reservation-aware checkout. It is a request identifier, not an ownership credential. Fingerprint method, path and normalized body (coalesced/sorted product quantities or sorted unique reservation IDs) under the session. The same key and fingerprint returns the original HTTP status and JSON, including original IDs/deadlines/order confirmation; the same key with a different request returns 409 `IDEMPOTENCY_CONFLICT`. Concurrent identical requests must serialize and produce one allocation/order. A replay does not change state, extend expiry or create another outbox event; its original `serverTime` may be old, so a client needing current state must GET it.
+
+Persist completed 2xx and deterministic business-409 outcomes. Use an operation savepoint inside the locked idempotency transaction so a rejected batch can roll back all stock/reservation/order/outbox changes before saving only its error result. Schema/auth/ownership/rate-limit failures and unexpected 5xx are not cached. A later explicit retry after an insufficient-stock outcome uses a new key. A committed order confirmation remains the replay result after the hold deadline **while the owning session credential is still valid**. Never blindly place another order on a timeout.
+
+Retaining idempotency evidence does not authorize expired credentials. After session expiry or cookie loss, return 401 and do not automatically issue a replacement session to retry an uncertain checkout as a new purchase. Existing locally remembered order IDs can still use the unchanged order-details/tracking APIs. If the confirmation itself was lost along with the cookie, this minimal anonymous design has no automatic order-discovery flow; operator-assisted reconciliation is required. No endpoint reveals a global order list or another session's order.
+
+A dedicated PostgreSQL expiry worker polls at most once per second, selects at most 100 distinct due inventory keys, locks available inventory rows with `FOR UPDATE SKIP LOCKED` in the shared order, then rechecks due rows at database time. Mark them expired, increment the key's inventory version, write a full availability outbox event, and commit. Concurrent workers/release/checkout recheck state under the same inventory lock, so an expiry is reconciled once; retries are harmless. A normal allocation/release/checkout can perform the same reconciliation lazily. Selection before locking is only a candidate scan, never authority to expire or allocate.
+
+No expiry transaction increments physical quantity: no unit was physically removed at reservation time. Worker failure delays events/projection updates, **not** PostgreSQL stock availability. Retain expired/released rows until session expiry plus at least 24 hours; retain consumed rows while their orders are retained. Never purge active rows or delete orders as cleanup, and do not remove cooldown/idempotency evidence while it can affect a request. Remove expired rate-limit windows in bounded batches. The original cart's desired item survives row cleanup; loss of a server hold is not an instruction to delete it locally.
+
+Proposed shared admission defaults: at most 20 new session issuances per IP per hour; at most 20 create/reacquire attempts per session per minute and 60 per IP per minute; at most 60 PATCH attempts per session per minute. Use the PostgreSQL counters so multiple API instances cannot bypass limits. Honor the session/unit/100-distinct-pair caps and five-second product cooldown independently. Deny before opening a long inventory transaction; 429 responses include `Retry-After`. Releasing and completing valid held checkout are not blocked behind a create/PATCH quota; apply separate bounded global HTTP protection so releases are not made impossible by repeated Add actions. GETs/session renewal never extend a hold. Stable session-cookie theft or mass new identities remain abuse risks; HTTPS, redaction and IP admission bounds reduce them without claiming a full customer-authentication system.
+
+### 10.8 Proposed errors and status codes
+
+Use section 6's exact standard envelope; no partial-result/error-data variant is added. These errors apply to the proposed APIs and reservation-aware checkout only; existing public/admin error contracts remain intact. Authorization/ownership is checked before exposing stored reservation state.
+
+| HTTP | `error.code` | `error.message` | Condition |
+| --- | --- | --- | --- |
+| 400 | `VALIDATION_ERROR` | `Invalid request parameters` | Malformed body/query/UUID/idempotency key, empty items, invalid quantity, repeated IDs where uniqueness is required, unknown fields or bounds. |
+| 401 | `CART_SESSION_REQUIRED` | `A valid cart session is required` | Missing, unknown or expired cookie. Session issuance itself needs no prior credential. |
+| 403 | `CART_ORIGIN_FORBIDDEN` | `Cart request origin is not allowed` | Origin/cookie-transport/local-development access restriction fails. |
+| 404 | `RESERVATION_NOT_FOUND` | `Reservation not found` | Unknown or foreign reservation ID; indistinguishable to the caller. |
+| 409 | `INSUFFICIENT_STOCK` | `Not enough stock available` | Unknown product, missing city inventory or inadequate available units. |
+| 409 | `RESERVATION_EXISTS` | `An active reservation already exists` | Create requests an already actively held product-city in this session. |
+| 409 | `RESERVATION_EXPIRED` | `Reservation has expired; reserve the item again` | PATCH/checkout includes an owned effectively expired hold. |
+| 409 | `RESERVATION_NOT_ACTIVE` | `Reservation is not active` | PATCH/checkout includes an owned released hold. |
+| 409 | `RESERVATION_CONSUMED` | `Reservation has already been consumed` | PATCH/new checkout includes an owned consumed hold; exact checkout replay still returns its original result. |
+| 409 | `RESERVATION_MISMATCH` | `Reservations do not match the requested order` | Held product/city/quantity set differs from normalized checkout items, or PATCH city differs from the held row. |
+| 409 | `RESERVATION_CITY_CONFLICT` | `Release active reservations before changing city` | Attempt to create/update active holds across cities. |
+| 409 | `RESERVATION_LIMIT` | `Cart reservation limit reached` | Session active-line, reserved-unit or lifetime-distinct-pair cap exceeded. |
+| 409 | `IDEMPOTENCY_CONFLICT` | `Idempotency key was used for a different request` | A retained session/key is reused with a different fingerprint. |
+| 415 | `UNSUPPORTED_MEDIA_TYPE` | `Content-Type must be application/json` | A mutation uses another body media type. |
+| 429 | `RESERVATION_RATE_LIMITED` | `Too many reservation requests` | Admission quota exceeded; include integer `Retry-After`. |
+| 429 | `RESERVATION_COOLDOWN` | `Wait before reserving this item again` | Same-session product-city generation attempted before its cooldown ends; include integer `Retry-After`. |
+| 503 | `RESERVATIONS_DISABLED` | `Cart reservations are not enabled` | Future feature module is present but securely disabled. |
+| 503 | `DATABASE_UNAVAILABLE` | `Cart data is temporarily unavailable` | PostgreSQL connection/availability failure. |
+| 503 | `RESERVATION_BUSY` | `Reservation could not be completed; retry the same request` | Bounded lock/transaction retry budget exhausted; include integer `Retry-After`. |
+| 500 | `INTERNAL_ERROR` | `An internal server error occurred` | Unexpected failure; no SQL, tokens, credentials or driver details. |
+
+Expired-checkout example (409):
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "RESERVATION_EXPIRED",
+    "message": "Reservation has expired; reserve the item again"
+  }
+}
+```
+
+For owned requests with multiple business problems, use deterministic precedence: not-found/ownership first, then consumed, expired, released, city/set mismatch, cap/cooldown, then insufficient stock. Authentication, schema and transport checks precede this sequence. An error never grants more time or confirms an order.
+
+### 10.9 Transactional outbox, Kafka and OpenSearch design
+
+**Do not reinterpret schema-version-1 `quantity` as available stock.** Introduce version 2 of `inventory.changed`, retaining physical `quantity` and the existing key/topic. Proposed exact snapshot payload:
+
+```json
+{
+  "eventId": "55555555-5555-4555-8555-555555555555",
+  "type": "inventory.changed",
+  "schemaVersion": 2,
+  "productId": "prod_001",
+  "city": "pune",
+  "quantity": 1,
+  "reservedQuantity": 1,
+  "availableQuantity": 0,
+  "inventoryVersion": 8,
+  "occurredAt": "2026-11-21T12:00:00.000Z",
+  "nextExpirationAt": "2026-11-21T12:00:30.000Z",
+  "causes": ["reservation.created"]
+}
+```
+
+All shown fields are required. Quantities are nonnegative integers with `quantity = reservedQuantity + availableQuantity` at `occurredAt`; `inventoryVersion` is the same product-city monotonic database counter, represented only within JSON's safe integer range. `nextExpirationAt` is the earliest remaining live hold deadline or null. `causes` is a nonempty deduplicated array from `reservation.created`, `reservation.updated`, `reservation.released`, `reservation.expired`, `checkout.confirmed`; combine causes when one transaction reconciles expiry and another action. Causes are operational explanations, not a complete customer audit. No session token/digest, reservation secret, raw cookie or inferred order association is included. Current admin event `orderId` remains null without an explicit stored order association.
+
+| Transition | Physical quantity | PostgreSQL availability | Required committed snapshot |
+| --- | --- | --- | --- |
+| Create/increase | Unchanged | Decreases by newly held units | New inventory version and resulting physical/reserved/available quantities. |
+| Decrease/release | Unchanged | Increases by relinquished live units | New version and resulting quantities; no double restoration for already expired/terminal holds. |
+| Deadline reached | Unchanged | Increases immediately through `expires_at > T`, even if the row is still stored active | Cleanup/lazy reconciliation subsequently materializes expiry and writes a new-version snapshot. The row timestamp/event observation is real processing time, not a fabricated event published at the deadline. |
+| Reserved checkout | Decreases by purchased units | Owned holds are removed; available units usually stay the same | Confirmed order, consumed holds and new-version snapshot in one transaction. |
+| Legacy checkout | Decreases by purchased unheld units | Decreases by the same units | New-version snapshot in the checkout transaction; live holds remain intact. |
+
+Continue using PostgreSQL outbox rows and at-least-once publishing. Mark `published_at` only after Kafka acknowledges; leave failed events pending; never publish inside checkout/allocation. The consumer must validate both schemas during migration, apply one atomic version-guarded update per product-city document and commit offsets only after success. Equal versions and duplicates are no-ops; smaller versions cannot overwrite a newer snapshot, regardless of delivery order or timestamp. A strictly newer version wins even if availability decreased. Keep database monotonic versions, not Kafka arrival times or expiry timestamps, as the ordering authority.
+
+Extend explicit OpenSearch mappings with `physicalQuantity` and `reservedQuantity` (integers) and nullable `nextExpirationAt` (date). Map event `quantity → physicalQuantity`, `reservedQuantity → reservedQuantity`, and `availableQuantity → stock`; retain public `available = stock > 0` and the long `inventoryVersion`. A version-1 event can be treated as physical=available and reserved=0 **only for events from before holds are enabled**, when no reservations existed. New writers emit version 2 after cutover, including legacy checkout. Upgrade publisher validators and consumer/parser/scripts/mappings first, stop/drain old writers, migrate/bootstrap consistently, then enable holds. Reject or alert on any post-cutover version-1 writer. Do not enable reservations in a mixed fleet or merely inject version-2 rows into today's version-1-only publisher.
+
+Bootstrap must read catalog, physical quantity, live holds, deadlines and version together. Under each product-city inventory lock, reconcile due expiry and capture a versioned availability snapshot at the same decision time; write any reconciliation outbox record before releasing the database lock. Perform OpenSearch I/O **after** committing/releasing it. Upsert only when that snapshot's version is greater; equal-version bootstrap may fill catalog metadata but must not replace availability. A concurrent newer event cannot be overwritten. Existing missing inventory combinations remain unavailable with version 0 and no invented hold. Bootstrap is repeatable, but its expiry-reconciliation step can legitimately write outbox records; it must share the allocator's locking rules.
+
+**Expiry is not an automatic OpenSearch timer.** Kafka/OpenSearch can lag beyond a deadline, including when the expiry worker is stopped. Product search must use OpenSearch for discovery/typo tolerance, then hydrate the result IDs with current PostgreSQL product prices and **live available quantities** in bounded batches within one short `REPEATABLE READ READ ONLY` transaction and observation time for the response. Product details and PostgreSQL search fallback use that same live formula. Preserve the existing product JSON fields: `stock` now means available-to-purchase units, and `available = stock > 0`. Do not drop candidates based on stale OpenSearch stock. A hold owner's held units are not included in public `stock`; the reservation response is the evidence of that owner's allocation. Product availability responses should use `Cache-Control: no-store`. If PostgreSQL is unavailable, return a standard 503 `DATABASE_UNAVAILABLE` with message `Product availability is temporarily unavailable`, not a stale reservability claim. This proposed availability-failure addition applies after the reservation rollout; it does not change current runtime behavior.
+
+OpenSearch may still be stale for discovery metadata, but it never authorizes reserving or checkout. The expiry worker's target is a one-second polling interval plus outbox/consumer lag, not a guaranteed end-to-end deadline. No Kafka/OpenSearch availability or consumer acknowledgement is inferred from a reservation response or outbox marker. Preserve existing admin definitions: inventory/overview stock metrics remain **physical** PostgreSQL quantity with the existing 1–5 threshold; any future reserved/available admin fields require a separate contract addition. Do not weaken admin authentication to expose reservation monitoring.
+
+### 10.10 Frontend persistence, rollout and planned verification
+
+Keep desired cart items and city buckets in local storage, independent of hold validity. A future versioned cart format may also persist public reservation IDs/deadlines for reconciliation, but never cookie credentials, admin tokens or an assertion that a persisted hold is still active. On reload, create/reuse the browser session and GET reservation state; reconcile IDs/products/cities against the desired cart. Missing session/hold, expired/released status or a lost reservation cookie means “requires a new reservation,” not “remove item” or “restart 30 seconds.” Old cart entries without IDs remain desired but unreserved. Local timers only change presentation; server state decides checkout.
+
+On Add, send create immediately; on subsequent increase/decrease, PATCH the owned active hold without changing its deadline. Disable checkout for pending/unreserved/expired lines; explicit Reserve again uses the create path and cooldown. On successful checkout, remove only purchased desired quantities and clear their hold mappings. On a network timeout, retain cart/key information and reconcile/replay before attempting another checkout. Keep normal order confirmation/history/tracking behavior. Do not cap a hold owner's quantity changes using only public product-card `stock`, which excludes that owner's existing hold.
+
+Implementation is gated off by a proposed `RESERVATIONS_ENABLED=false` default. Enabling it requires the new schema/shared allocator, cookie/Origin/credentialed-CORS wiring, rate-limit secret/counters, checkout compatibility, live availability hydration, both event schema validators, index mappings/bootstrap, expiry worker and the frontend reservation flow. Configuring a 30-second TTL alone does not implement or safely activate the feature. No frontend/backend implementation, environment file, migration or deployment is changed in this task.
+
+Plan these tests before enabling (none are claimed executed by this design):
+
+1. **Real PostgreSQL competing browsers:** isolated physical stock 1, two independent session cookies and distinct keys, concurrent POSTs via `Promise.all`; exactly one 201 and one 409, one live unit held, physical stock still 1 and one committed creation snapshot. Also race a legacy checkout against a reservation and a reserved checkout against expiry/reacquisition.
+2. **Expiry without cleanup:** use the real database clock and a 30-second demo TTL, stop the expiry worker, verify no reacquisition before the deadline, zero hold reduction at/after it, immediate availability to another eligible session, and rejection of the original expired checkout without any order or decrement. Repeat with expiry while waiting for an inventory lock.
+3. **Cart continuity/refresh:** expired items and per-city desired quantities remain in persisted cart; refresh, GET, repeated Add, same-key retries and quantity PATCH cannot extend expiry. Early release/re-add observes cooldown; a manual new-key reacquisition after eligibility gets a new UUID and deadline.
+4. **Valid consumption and release:** checkout before expiry returns the unchanged 201 order shape with server prices, consumes exactly the owned holds and records confirmed tracking history; release/decrease restores only live available units while physical stock is unchanged. Terminal release/replay cannot refund a consumed order.
+5. **Multiple items, quantity and city:** duplicate product normalization, caps, partial-stock failure, full-batch rollback, no extra deadline for a new product, same-session tab ordering, explicit old-city release, failed new-city reservation and no cross-city consumption. Verify all physical/nonnegative invariants under concurrency.
+6. **Security and idempotency:** missing/foreign/expired cookies, guessed UUIDs, CSRF/Origin/Host failures, cookie flags, log redaction, rejected client TTL/price/user IDs, rate limits across two API instances, credentialed-CORS allowlist, same-key concurrent requests, body/key conflict, deterministic-error replay, lost checkout response, refusal of expired-session replays and session loss.
+7. **Real outbox/Kafka/OpenSearch:** each committed creation/update/release/expiry/checkout produces the correct full snapshot; rollback produces no allocation event. Verify eventual projections after the expiry worker resumes, duplicate/out-of-order version rejection, crash-after-ACK duplicates, retry/offset behavior, guarded bootstrap races and version-1-to-2 rollout. With workers unavailable, PostgreSQL-hydrated product availability remains correct; never claim live synchronization without live services.
+8. **Regression:** all existing checkout/10-last-unit races, product/filter responses, order details/tracking, admin authentication/local-demo restrictions and physical admin metrics continue passing. Run builds/unit/PostgreSQL integration suites and future reservation tests separately; report live services, skipped tests and migrations actually exercised.
