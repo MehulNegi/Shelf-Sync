@@ -1,3 +1,4 @@
+import { ApiError } from '../services/api-error'
 import type { City, Product, ProductQuery, ProductsResponse } from '../types/products'
 
 type CatalogEntry = Omit<Product, 'city' | 'stock' | 'available'> & {
@@ -37,6 +38,22 @@ const catalog: CatalogEntry[] = [
   },
 ]
 
+function toProduct({ inventory, ...product }: CatalogEntry, city: City): Product {
+  const stock = inventory[city]
+  return { ...product, city, stock, available: stock > 0 }
+}
+
+export function mockProduct(id: string, city: City): Product {
+  const product = catalog.find((entry) => entry.id === id)
+  if (!product) throw new ApiError(404, 'PRODUCT_NOT_FOUND', 'Product not found.')
+  return toProduct(product, city)
+}
+
+export function reduceMockStock(id: string, city: City, quantity: number) {
+  const entry = catalog.find((product) => product.id === id)
+  if (entry) entry.inventory[city] -= quantity
+}
+
 export function mockProducts(query: ProductQuery): ProductsResponse {
   const search = query.q?.trim().toLowerCase() ?? ''
   const products = catalog
@@ -48,10 +65,7 @@ export function mockProducts(query: ProductQuery): ProductsResponse {
         value.toLowerCase().includes(search),
       )
     ))
-    .map(({ inventory, ...product }) => {
-      const stock = inventory[query.city]
-      return { ...product, city: query.city, stock, available: stock > 0 }
-    })
+    .map((entry) => toProduct(entry, query.city))
 
   return { products, total: products.length }
 }

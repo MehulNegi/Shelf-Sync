@@ -1,4 +1,4 @@
-import { Search, ShoppingBag } from 'lucide-react'
+import { Search, ShoppingBag, ShoppingCart } from 'lucide-react'
 import { CitySelector } from '../city/CitySelector'
 import { Input } from '../ui/input'
 import type { City } from '../../types/products'
@@ -6,11 +6,13 @@ import type { City } from '../../types/products'
 interface HeaderProps {
   city: City
   onCityChange: (city: City) => void
+  cartCount: number
+  onOpenCart: () => void
   search: string
   onSearchChange: (search: string) => void
 }
 
-export function Header({ city, onCityChange, search, onSearchChange }: HeaderProps) {
+export function Header({ city, onCityChange, cartCount, onOpenCart, search, onSearchChange }: HeaderProps) {
   return (
     <header className="site-header" id="top">
       <div className="shell header-inner">
@@ -28,7 +30,15 @@ export function Header({ city, onCityChange, search, onSearchChange }: HeaderPro
               onChange={(event) => onSearchChange(event.target.value)} />
           </label>
         </div>
-        <CitySelector city={city} onChange={onCityChange} />
+        <div className="header-actions">
+          <CitySelector city={city} onChange={onCityChange} />
+          <button type="button" className="cart-toggle" onClick={onOpenCart}
+            aria-label={`Cart, ${cartCount} ${cartCount === 1 ? 'item' : 'items'}`}>
+            <ShoppingCart size={19} aria-hidden="true" />
+            <span>Cart</span>
+            <span className="cart-count">{cartCount}</span>
+          </button>
+        </div>
       </div>
     </header>
   )
