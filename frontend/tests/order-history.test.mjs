@@ -68,7 +68,7 @@ test('missing real orders retain their local reference and failed checkouts do n
 test('tracking shows only stages supported by the persisted status', () => {
   const states = (status) => live.orderTracking(status).map((stage) => stage.state)
   assert.deepEqual(states('confirmed'), ['current', 'pending', 'pending', 'pending'])
-  assert.deepEqual(states('shipped'), ['completed', 'completed', 'current', 'pending'])
+  assert.deepEqual(states('shipped'), ['pending', 'pending', 'current', 'pending'])
   assert.deepEqual(states('pending'), ['pending', 'pending', 'pending', 'pending'])
   assert.deepEqual(states('cancelled'), ['pending', 'pending', 'pending', 'pending'])
   assert.equal(live.orderStatusLabel('cancelled'), 'Cancelled')

@@ -1,11 +1,16 @@
 import { Check, Circle, MapPin } from 'lucide-react'
-import { orderTracking } from '../../services/order-tracking'
-import type { OrderStatus } from '../../types/orders'
+import { formatOrderDate, orderTracking } from '../../services/order-tracking'
+import type { OrderStatus, TrackingEvent } from '../../types/orders'
 
-export function OrderTracking({ status }: { status: OrderStatus }) {
+interface OrderTrackingProps {
+  status: OrderStatus
+  history?: TrackingEvent[]
+}
+
+export function OrderTracking({ status, history }: OrderTrackingProps) {
   return (
     <ol className="tracking-steps" aria-label="Order tracking">
-      {orderTracking(status).map(({ label, state }) => {
+      {orderTracking(status, history).map(({ label, state, occurredAt }) => {
         const Icon = state === 'completed' ? Check : state === 'current' ? MapPin : Circle
         return (
           <li key={label} className="tracking-step" data-state={state}
@@ -14,6 +19,8 @@ export function OrderTracking({ status }: { status: OrderStatus }) {
             <div>
               <strong>{label}</strong>
               <span>{state === 'current' ? 'Current stage' : state === 'completed' ? 'Completed' : 'Pending'}</span>
+              {occurredAt ? <time className="tracking-time" dateTime={occurredAt}>{formatOrderDate(occurredAt)}</time>
+                : history && state !== 'pending' ? <span>Time unavailable</span> : null}
             </div>
           </li>
         )

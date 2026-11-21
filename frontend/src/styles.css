@@ -300,7 +300,8 @@ footer { background: #f5eef7; border-top: 1px solid var(--color-line); }
 .tracking-step[data-state="completed"] { color: #1d593c; }
 .tracking-symbol { flex: 0 0 auto; padding-top: .13rem; }
 .tracking-step strong, .tracking-step div > span { display: block; font-size: .875rem; }
-.tracking-step div > span { font-size: .8125rem; }
+.tracking-step div > span, .tracking-time { display: block; font-size: .8125rem; }
+.tracking-time { margin-top: .25rem; }
 .history-empty .primary-button { margin-top: .5rem; }
 
 @media (max-width: 50rem) {
