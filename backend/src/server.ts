@@ -1,3 +1,5 @@
+import { loadProfitabilityConfig } from './config/profitability.js';
+import { createProfitabilityApi } from './services/profitability.js';
 import { loadReservationConfig } from './config/reservations.js';
 import { PgCartRepository } from './repositories/cart.js';
 import { buildApp } from './app.js';
@@ -25,8 +27,9 @@ async function start() {
   const orders = new PgOrderRepository(pool);
   const adminConfig = loadAdminConfig(config);
   const admin = createAdminApi(pool, adminConfig);
+  const profitability=createProfitabilityApi(pool,adminConfig,loadProfitabilityConfig());
   if (adminConfig.mode === 'disabled') console.info(adminConfig.setupIssue ?? 'Admin API is disabled by default.');
-  const app = buildApp({ products, orders, tracking: orders, ...(admin ? { admin } : {}), cart: { config:reservationConfig, repository:new PgCartRepository(pool,reservationConfig) }, frontendOrigin: config.frontendOrigin, logger: true });
+  const app = buildApp({ products, orders, tracking: orders, ...(admin ? { admin } : {}), ...(profitability?{profitability}:{}), cart: { config:reservationConfig, repository:new PgCartRepository(pool,reservationConfig) }, frontendOrigin: config.frontendOrigin, logger: true });
   app.addHook('onClose', async () => { try { await searchClient?.close(); } finally { await pool.end(); } });
   try {
     await pool.query('SELECT 1 FROM cart_reservations LIMIT 0');
