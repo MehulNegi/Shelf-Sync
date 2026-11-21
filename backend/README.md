@@ -1,5 +1,7 @@
 # ShelfSync backend
 
+Timed cart reservations: see [setup, rollout and recovery](docs/reservations.md). The module is disabled by default and implements shared contract section 10; frontend reservation integration is a separate task.
+
 Fastify 5, strict TypeScript, and PostgreSQL via `pg`. Use Node.js 22 or later (an active LTS release is recommended). Run all commands below from `backend/`.
 
 ## Setup and commands
@@ -39,13 +41,13 @@ Startup checks a real PostgreSQL connection before listening. Missing credential
 
 `npm run seed` upserts metadata for stable product IDs `prod_001` through `prod_012`. It inserts missing inventory rows for Pune, Delhi, and Bengaluru, preserving existing stock/version values. A fresh database has earphones stock of 1/8/3 respectively. It is safe to repeat, but does not reset inventory for a demo after checkout. Product prices are decimal INR rupees in PostgreSQL, serialized as JSON numbers (1999 means ₹1,999; 159.50 means ₹159.50).
 
-Schema includes products, versioned city inventory, orders, order items, and JSON outbox events. Checkout, the Kafka publisher, and search bootstrap use the existing schema; no additional SQL migration is needed for search. PostgreSQL remains authoritative for catalog prices, orders, and inventory; OpenSearch is an eventually consistent projection.
+Schema includes products, versioned city inventory, orders, order items, and JSON outbox events. Run migration 003 before starting this version, even with cart routes disabled: checkout, live product availability and search bootstrap read reservation tables. The migration is additive and preserves existing data. PostgreSQL remains authoritative for catalog prices, orders, and inventory; OpenSearch is an eventually consistent projection.
 
 ## Transactional checkout and outbox
 
 `POST /api/orders` accepts a supported lowercase city and 1–100 cart entries. Quantities must be JSON integers from 1 to 2,147,483,647. Duplicate product IDs are combined; the combined quantity must fit the same range. Extra fields such as client-supplied prices/totals are rejected. Product IDs are sorted before inventory updates so overlapping multi-item carts acquire row locks in the same order.
 
-One checked-out PostgreSQL client executes the complete `READ COMMITTED` transaction. Prices come from PostgreSQL; arithmetic uses integer paise internally to avoid floating-point rounding, while SQL and API prices/totals remain INR rupees. Each inventory update conditionally deducts stock only when `quantity >= requested`, increments `version`, and updates `updated_at`. A missing product, missing city inventory, or insufficient stock returns the contract's HTTP 409 `INSUFFICIENT_STOCK`. Any failure rolls back inventory, versions, orders, items, and outbox writes. A client with a failed rollback is discarded from the pool.
+One checked-out PostgreSQL client executes the complete `READ COMMITTED` transaction. Prices come from PostgreSQL; arithmetic uses integer paise internally to avoid floating-point rounding, while SQL and API prices/totals remain INR rupees. After locking inventory rows in deterministic order, legacy checkout verifies physical stock minus unexpired holds before its conditional physical decrement. Each changed inventory key increments `version` and updates `updated_at` once. A missing product, missing city inventory, or insufficient stock returns the contract's HTTP 409 `INSUFFICIENT_STOCK`. Any failure rolls back inventory, versions, orders, items, and outbox writes. A client with a failed rollback is discarded from the pool.
 
 The transaction creates one confirmed order, one item per distinct product, and one unpublished `inventory.changed` event per changed inventory row. Success is returned only after commit. PostgreSQL rechecks a conditional update's predicate after a competing updater commits; see [PostgreSQL transaction isolation](https://www.postgresql.org/docs/16/transaction-iso.html) and [node-postgres transactions](https://node-postgres.com/features/transactions).
 
@@ -55,10 +57,14 @@ Outbox rows use a UUID matching `payload.eventId`, `event_type=inventory.changed
 {
   "eventId": "uuid",
   "type": "inventory.changed",
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "productId": "prod_001",
   "city": "pune",
   "quantity": 0,
+  "reservedQuantity": 0,
+  "availableQuantity": 0,
+  "nextExpirationAt": null,
+  "causes": ["checkout.confirmed"],
   "inventoryVersion": 8,
   "occurredAt": "2026-11-21T10:00:00.000Z"
 }
@@ -66,7 +72,7 @@ Outbox rows use a UUID matching `payload.eventId`, `event_type=inventory.changed
 
 `quantity` and `inventoryVersion` describe the resulting committed inventory, not a delta. `published_at` starts null and is set by the standalone publisher after Kafka acknowledges the event. No external messages are sent by checkout. Inventory versions exceeding JSON's safe integer range fail and roll back instead of emitting a rounded version.
 
-`GET /api/orders/:id` reads persisted orders/items and returns standard-format HTTP 404 for missing orders. Unit prices and totals are checkout snapshots; names come from the current product record. Each POST is a new purchase; request replay/idempotency is not part of the shared contract.
+`GET /api/orders/:id` reads persisted orders/items and returns standard-format HTTP 404 for missing orders. Unit prices and totals are checkout snapshots; names come from the current product record. Legacy POSTs without reservation IDs remain new purchases. Reservation-aware checkout requires an owning cookie and idempotency key; see the reservation runbook and shared contract section 10.
 
 ## Persisted order tracking
 
@@ -150,15 +156,15 @@ npm run worker:inventory
 
 Bootstrap creates the index if absent and applies explicit mappings. Existing incompatible mappings cause an actionable command failure; the command never deletes an index. Product `id`, category and city use keyword mappings, name/description use analyzed text, price uses a scaled float with factor 100 (INR), stock uses an integer, and inventory version uses a long. Each product-city document has ID `SHA256(JSON.stringify([productId, city]))` and holds the API product fields plus `inventoryVersion`, `catalogReady`, and optional `lastEventId`/`occurredAt`.
 
-Bootstrap reads PostgreSQL in keyset batches of 100 products, includes all three cities (missing inventory is stock/version 0), and performs atomic scripted upserts. Catalog fields are refreshed from PostgreSQL, while stock changes only when the incoming inventory version is strictly greater than the stored version. Concurrent Kafka updates therefore survive a stale bootstrap snapshot. Repeating bootstrap is safe; it does not reset stock or delete other documents. Catalog changes need another bootstrap. Catalog deletions or incompatible mapping changes require a fresh index and an explicit rollout; use a new consumer group to replay retained events into that index after bootstrapping.
+Bootstrap reads PostgreSQL in keyset batches of 10 products, reconciles expiry under inventory locks, commits before OpenSearch I/O, includes all three cities (missing inventory is stock/version 0), and performs atomic scripted upserts. Catalog fields are refreshed from PostgreSQL, while stock changes only when the incoming inventory version is strictly greater than the stored version. Concurrent Kafka updates therefore survive a stale bootstrap snapshot. Repeating bootstrap is safe; it does not reset stock or delete other documents. Catalog changes need another bootstrap. Catalog deletions or incompatible mapping changes require a fresh index and an explicit rollout; use a new consumer group to replay retained events into that index after bootstrapping.
 
-The consumer reads `inventory-events` from the beginning for a new group and resumes committed offsets for an existing group. It validates the actual schema version 1 payload and deterministic key. A Painless update script changes only inventory fields when `incoming.inventoryVersion > stored.inventoryVersion`; duplicates and older versions are successful no-ops. `lastEventId` records the latest applied event. An event arriving before catalog bootstrap creates an inventory-only document with `catalogReady=false`. Bootstrap later fills catalog metadata without overwriting newer inventory; incomplete documents are excluded from API search.
+The consumer reads `inventory-events` from the beginning for a new group and resumes committed offsets for an existing group. It validates historical schema-1 and current schema-2 payloads and their deterministic key. A configured rollout cutoff rejects post-cutover schema-1 records. Schema 2 preserves physical quantity and projects available stock, reserved units and the next expiry. A Painless update script changes only inventory fields when `incoming.inventoryVersion > stored.inventoryVersion`; duplicates and older versions are successful no-ops. `lastEventId` records the latest applied event. An event arriving before catalog bootstrap creates an inventory-only document with `catalogReady=false`. Bootstrap later fills catalog metadata without overwriting newer inventory; incomplete documents are excluded from API search.
 
 Automatic offset commits and automatic batch resolution are disabled. Each record's next offset is manually committed only after its OpenSearch update/no-op succeeds, using integer-safe offset arithmetic. A crash between the OpenSearch update and Kafka commit leads to replay and an idempotent version check. Transient connection failures, timeouts, conflicts, throttling, and server errors retry with exponential backoff from 1 to 30 seconds; heartbeats continue during backoff. SIGINT/SIGTERM stops new work, interrupts backoff, and disconnects cleanly; an interrupted/unprocessed record stays uncommitted. Requests have five-second timeouts with two client retries; the Kafka session timeout is 60 seconds.
 
 There is **no automatic dead-letter queue or skip policy**. Malformed records, unsupported schema/key, authorization errors, and permanent mapping/index errors stop the worker with sanitized partition/offset or failure-category logs. Previously processed records stay committed; the failing record is not acknowledged. Investigate/fix the producer, permissions, mappings, or payload at that offset, then restart the same group. Any manual offset skip must be a deliberate operator decision with a separate recovery plan. Startup connection failures also exit nonzero for a process supervisor to restart.
 
-With `OPENSEARCH_URL` configured, `GET /api/products` uses fuzzy `multi_match` search on name/description (`AUTO` fuzziness), exact city/category filters, and inclusive INR price ranges. A scroll cursor retrieves the whole filtered catalog so the shared unpaginated `{products,total}` contract remains intact. Run bootstrap before enabling search: a healthy empty index returns empty results. If OpenSearch fails (including a missing index), the API logs a sanitized warning and falls back to PostgreSQL substring matching; that fallback does not offer typo tolerance. Product details and checkout always use PostgreSQL. Search stock/prices can lag, and checkout always checks current PostgreSQL quantities and prices.
+With `OPENSEARCH_URL` configured, `GET /api/products` uses fuzzy `multi_match` search on name/description (`AUTO` fuzziness), exact city/category filters, and inclusive INR price ranges. A scroll cursor retrieves the whole filtered catalog so the shared unpaginated `{products,total}` contract remains intact. Run bootstrap before enabling search: a healthy empty index returns empty results. If OpenSearch fails (including a missing index), the API logs a sanitized warning and falls back to PostgreSQL substring matching; that fallback does not offer typo tolerance. Product details and checkout always use PostgreSQL. Search discovery metadata can lag; returned stock/prices are hydrated from PostgreSQL in a consistent read snapshot, and checkout checks current PostgreSQL availability and prices. A PostgreSQL availability failure returns 503 instead of projection stock.
 
 Verification commands:
 
@@ -170,9 +176,9 @@ RUN_SEARCH_TESTS=1 npm run test:search
 RUN_PIPELINE_TESTS=1 npm run test:pipeline
 ```
 
-Unit tests cover queries, fallback, TLS configuration, retries, offset handling, and shutdown. PostgreSQL integration tests cover real catalog reads using a projection double. The live search suite tests actual OpenSearch mappings, fuzzy HTTP queries, duplicate/old events, and stale-bootstrap protection. The live pipeline suite creates a temporary PostgreSQL schema, OpenSearch index, and Kafka group, performs a real checkout, publishes the committed event, and asserts both the projected stock/version and committed Kafka offset. It deletes only its own test index/schema; Kafka probe events/group metadata remain subject to normal retention. Probe product IDs start with `test_` and must not be treated as real demo catalog entries. Live suites skip unless explicitly enabled and fail if enabled with unavailable services.
+Unit tests cover queries, fallback, TLS configuration, retries, offset handling, and shutdown. PostgreSQL integration tests cover real catalog reads using a projection double. The live search suite tests actual OpenSearch mappings, fuzzy HTTP queries, duplicate/old events, and stale-bootstrap protection. The live pipeline suite creates a temporary PostgreSQL schema, OpenSearch index, and Kafka group, performs real reservation creation, release, expiry and checkout, publishes committed schema-2 events, and asserts projected physical/reserved/available stock, stale-version rejection and committed offsets. It deletes only its own test index/schema; Kafka probe events/group metadata remain subject to normal retention. Probe product IDs start with `test_` and must not be treated as real demo catalog entries. Live suites skip unless explicitly enabled and fail if enabled with unavailable services.
 
-Latest local verification: the live OpenSearch suite passed all four checks. With the Command Center APIs present, checkout event `eced0a84-f389-4519-bdfb-b1aed5bde945` passed through the outbox and Aiven Kafka to OpenSearch (`inventoryVersion=2`, `stock=0`), with the consumer offset committed after processing. These checks used isolated test schemas, indexes, and consumer groups.
+Latest local verification: four live OpenSearch checks passed. Schema-2 events for reserve/release/re-reserve/expiry/checkout passed through Aiven Kafka into the projection at versions 2–6 with availability 0/1/0/1/0. Final checkout event `0c40361b-24ec-48e3-8672-fb275460e287` reached version 6/stock 0 and its consumer offset was committed after successful projection. These checks used isolated schemas/indexes/groups; PostgreSQL integration separately verified an actual 30-second hold with cleanup stopped.
 
 ## API integration
 
@@ -251,4 +257,4 @@ The checkout suite uses dedicated generated products and checks single/multi-ite
 
 Tracking integration tests also exercise the migration against pre-existing orders, known/unknown timestamp semantics, chronological reads, disabled status changes, and rollback on history write failure. Last-unit races assert exactly one persisted confirmation-history record as well as one order/event.
 
-Next task: configure the trusted production admin identity provider (or explicitly choose local-only demonstration), then integrate the Command Center UI using the shared schemas. Fulfillment mutations remain disabled until a separate authorized workflow is defined.
+Next task: integrate the frontend C7 reservation flow and perform the documented coordinated worker/API rollout. Production admin access still requires a trusted identity provider; local-demo restrictions are unchanged. Fulfillment mutations remain disabled until a separate authorized workflow is defined.

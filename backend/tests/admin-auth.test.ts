@@ -47,7 +47,8 @@ test('real signed JWT verification rejects invalid credentials before query vali
   }
   const tokens = ['', 'invalid', await credentials.token({ exp: now - 1 }), await credentials.token({ nbf: now + 60 }),
     await credentials.token({ iss: 'https://untrusted.example/' }), await credentials.token({ aud: 'wrong-audience' }),
-    await credentials.token({ sub: '' }), await credentials.token({}, ['exp']), await credentials.token({ exp: now + 901 }),
+    // Avoid a whole-second rollover turning this excessive-lifetime fixture valid.
+    await credentials.token({ sub: '' }), await credentials.token({}, ['exp']), await credentials.token({ exp: now + 1800 }),
     await other.token()];
   for (const token of tokens) {
     const response = await app.inject({ url: '/api/admin/orders?limit=999', headers: credentials.headers(token) });

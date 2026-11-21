@@ -32,6 +32,9 @@ function pem(path: string | undefined, label: string, marker: string) {
 
 export function loadKafkaConfig(env: NodeJS.ProcessEnv = process.env): KafkaSettings {
   if (env === process.env) loadDotenv({ quiet: true });
+  if (env.INVENTORY_V1_CUTOFF_AT && (!env.INVENTORY_V1_CUTOFF_AT.endsWith('Z') || !Number.isFinite(Date.parse(env.INVENTORY_V1_CUTOFF_AT)))) {
+    throw new SetupError('INVENTORY_V1_CUTOFF_AT must be a fixed ISO 8601 UTC rollout timestamp shared by API, publisher and consumer.');
+  }
   if (env.NODE_TLS_REJECT_UNAUTHORIZED === '0') throw new SetupError('Remove NODE_TLS_REJECT_UNAUTHORIZED=0. Kafka requires verified TLS.');
   const brokers = (env.KAFKA_BROKERS ?? '').split(',').map(value => value.trim());
   if (brokers.some(broker => {

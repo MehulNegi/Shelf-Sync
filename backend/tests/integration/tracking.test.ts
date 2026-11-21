@@ -41,6 +41,8 @@ test('PostgreSQL persisted order tracking and legacy migration', {
   catch (error) { await migrationClient.query('ROLLBACK'); throw error; }
   finally { migrationClient.release(); }
 
+  await pool.query(await readFile(new URL('migrations/003_cart_reservations.sql', databaseDirectory),'utf8'));
+
   await t.test('migration preserves legacy orders and marks historical transition times unknown', async () => {
     assert.deepEqual((await pool.query('SELECT * FROM orders ORDER BY id')).rows, legacyBefore);
     for (const status of ['pending', 'confirmed', 'cancelled']) {

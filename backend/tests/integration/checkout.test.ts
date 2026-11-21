@@ -143,8 +143,8 @@ test('PostgreSQL checkout integration', { skip: process.env.RUN_DB_TESTS !== '1'
     const event = rows[0]!;
     assert.equal(event.event_type, 'inventory.changed');
     assert.equal(event.published_at, null);
-    assert.deepEqual(event.payload, { eventId: event.id, type: 'inventory.changed', schemaVersion: 1,
-      productId: id, city: 'pune', quantity: 0, inventoryVersion: 8, occurredAt: event.created_at.toISOString() });
+    assert.deepEqual(event.payload, { eventId: event.id, type: 'inventory.changed', schemaVersion: 2,
+      productId: id, city: 'pune', quantity: 0, inventoryVersion: 8, occurredAt: event.created_at.toISOString(), reservedQuantity: 0, availableQuantity: 0, nextExpirationAt: null, causes: ['checkout.confirmed'] });
   });
 
   await t.test('late database failure rolls back order, items, inventory, and outbox', async () => {

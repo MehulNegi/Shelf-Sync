@@ -1,16 +1,18 @@
+import { cartCheckout, normalizeCart, type CartApi } from './cart.js';
 import type { FastifyInstance } from 'fastify';
 import { normalizeOrder, type OrderService, type OrderTrackingService } from '../services/orders.js';
 import { cities } from '../types/product.js';
 import type { OrderInput } from '../types/order.js';
 
-export function registerOrderRoutes(app: FastifyInstance, service: OrderService) {
-  app.post<{ Body: OrderInput }>('/api/orders', {
-    preValidation: async request => { normalizeOrder(request.body); },
+export function registerOrderRoutes(app: FastifyInstance, service: OrderService, cart?: CartApi) {
+  app.post<{ Body: OrderInput & { reservationIds?: string[] } }>('/api/orders', {
+    preValidation: async request => { if (request.body && typeof request.body==='object' && Object.hasOwn(request.body,'reservationIds')) normalizeCart(request.body,'checkout'); else normalizeOrder(request.body); },
     schema: {
       body: {
         type: 'object', additionalProperties: false, required: ['city', 'items'],
         properties: {
           city: { type: 'string', enum: cities },
+          reservationIds: { type:'array', minItems:1, maxItems:20, uniqueItems:true, items:{type:'string',format:'uuid'} },
           items: {
             type: 'array', minItems: 1, maxItems: 100,
             items: {
@@ -25,7 +27,7 @@ export function registerOrderRoutes(app: FastifyInstance, service: OrderService)
         properties: { success: { type: 'boolean', const: true }, orderId: { type: 'string' }, status: { type: 'string', const: 'confirmed' }, total: { type: 'number' } }
       } }
     }
-  }, async (request, reply) => reply.code(201).send(await service.create(request.body)));
+  }, async (request, reply) => Object.hasOwn(request.body, 'reservationIds') ? cartCheckout(request,reply,cart) : reply.code(201).send(await service.create(request.body)));
 
   app.get<{ Params: { id: string } }>('/api/orders/:id', {
     schema: {
