@@ -1,5 +1,7 @@
 # ShelfSync backend
 
+Render B10: see [deployment configuration, security blockers and rollback](docs/render-deployment.md). This prepares four independent services; it does not deploy them. Public admin and ProfitOS stay disabled. The Vercel/Render cookie topology must be verified before enabling reservations.
+
 ProfitOS B8: see [implementation, policy gates and migration instructions](docs/profitability-implementation.md). The module defaults off; F14 remains frontend-only, and automatic checkout financial capture is deferred pending the C8.1 policy decisions.
 
 F15/B8.1: see [product/city integration readiness and the deployment checklist](docs/f15-backend-readiness.md). Verification uses isolated fixtures and does not activate persistent costs or apply shared migrations.
@@ -28,6 +30,7 @@ Development: `npm run dev`. Default URL: `http://localhost:3000/api`. Production
 | --- | --- |
 | `DATABASE_URL` | Required PostgreSQL URL from Aiven; URL-encode credentials. |
 | `DATABASE_CA_CERT_PATH` | Path to Aiven project CA PEM, relative to the working directory or absolute. Required when the server certificate uses the Aiven project CA. Omit only for a certificate trusted by Node's default CA store. |
+| `DATABASE_POOL_MAX` | Per-process limit, integer 1–10; default 5. Budget API/workers and overlapping deployments together. |
 | `PORT` | HTTP port; default `3000`. |
 | `HOST` | Bind address; default `0.0.0.0`. |
 | `FRONTEND_ORIGIN` | Exact allowed HTTP(S) origin; default `http://localhost:5173`, no trailing slash. |
@@ -37,7 +40,7 @@ In Aiven Console, obtain the PostgreSQL service URI and download the project CA 
 
 TLS certificate and hostname verification stay enabled, including if an Aiven URL contains `sslmode=require`. The application removes that URL option before supplying an explicit verified TLS configuration. `sslmode=verify-full` is also accepted; other SSL URL options are rejected to prevent `pg` from overriding that configuration. Do not set `NODE_TLS_REJECT_UNAUTHORIZED=0`. See the [Aiven Node.js TLS example](https://aiven.io/docs/products/postgresql/howto/connect-node) and [node-postgres SSL configuration](https://node-postgres.com/features/ssl).
 
-Startup checks a real PostgreSQL connection before listening. Missing credentials, unreadable CA files, and failed connections cause a nonzero exit with setup guidance. There is no in-memory fallback. The pool has at most five connections, a five-second connection timeout, and a ten-second statement timeout. Raw driver errors and request headers/URLs are not logged.
+Startup checks a real PostgreSQL connection before listening. Missing credentials, unreadable CA files, and failed connections cause a nonzero exit with setup guidance. There is no in-memory fallback. The pool defaults to five connections, with a five-second connection timeout and a ten-second statement timeout. Raw driver errors and request headers/URLs are not logged. `/api/health` retains its liveness response. `/api/ready` is a no-store PostgreSQL readiness probe with a two-second response deadline; it does not assert Kafka/OpenSearch synchronization. API and workers drain on SIGINT/SIGTERM with a 25-second shutdown deadline.
 
 ## Database operations
 

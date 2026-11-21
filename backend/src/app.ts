@@ -21,6 +21,7 @@ export interface AppOptions {
   cart?: CartApi;
   frontendOrigin: string;
   logger?: boolean;
+  readiness?: () => Promise<boolean>;
 }
 
 export function buildApp(options: AppOptions) {
@@ -28,6 +29,7 @@ export function buildApp(options: AppOptions) {
     logger: options.logger ?? false,
     logController: new LogController({ disableRequestLogging: true }),
     bodyLimit: 64 * 1024,
+    forceCloseConnections: 'idle',
     routerOptions: {
       onMaxParamLength: (_path, _request, response) => {
         const finance=_request.url?.startsWith('/api/admin/profitability/') || (_request.url?.startsWith('/api/admin/products/')&&_request.url.includes('/costs'));
@@ -39,8 +41,9 @@ export function buildApp(options: AppOptions) {
   });
   app.register(cors, () => async (request: import('fastify').FastifyRequest) => {
     const costPath=Boolean(options.profitability && /^\/api\/admin\/products\/[^/]+\/costs(?:\?|$)/.test(request.url));
-    return {origin:options.frontendOrigin,methods:['GET','POST','PATCH','OPTIONS',...(costPath?['PUT']:[])],
-      ...(costPath?{allowedHeaders:['Content-Type','Authorization','If-Match'],exposedHeaders:['ETag']}:{}),
+    return {origin:request.headers.origin===options.frontendOrigin?options.frontendOrigin:false,methods:['GET','POST','PATCH','OPTIONS',...(costPath?['PUT']:[])],
+      allowedHeaders:['Content-Type','Authorization','Idempotency-Key',...(costPath?['If-Match']:[])],
+      ...(costPath?{exposedHeaders:['ETag']}:{}),
       credentials:Boolean(options.cart?.config.enabled && (request.url.startsWith('/api/cart/')||request.url.split('?')[0]==='/api/orders'))};
   });
   app.setErrorHandler<FastifyError>((error, request, reply) => {
@@ -62,6 +65,14 @@ export function buildApp(options: AppOptions) {
   app.get('/api/health', {
     schema: { response: { 200: { type: 'object', required: ['status'], properties: { status: { type: 'string', const: 'ok' } } } } }
   }, async () => ({ status: 'ok' }));
+  // Operational probe; the shared /api/health liveness contract stays unchanged.
+  if (options.readiness) app.get('/api/ready', async (_request, reply) => {
+    reply.header('Cache-Control', 'no-store');
+    let ready = false;
+    try { ready = await options.readiness!(); } catch { /* never expose driver errors */ }
+    if (!ready) return reply.code(503).send({ success: false, error: { code: 'SERVICE_UNAVAILABLE', message: 'Service is not ready' } });
+    return { status: 'ready' };
+  });
   registerProductRoutes(app, new ProductService(options.products));
   registerOrderRoutes(app, new OrderService(options.orders), options.cart);
   if (options.tracking) registerOrderTrackingRoutes(app, new OrderTrackingService(options.tracking));
