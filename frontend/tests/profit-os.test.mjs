@@ -7,9 +7,12 @@ import { createServer } from 'vite'
 const vite = await createServer({ server: { middlewareMode: true, ws: false, watch: null } })
 const {
   baseline, calculateScenario, breakEvenDiscount, advise, parseHundredths, formatPaise, formatDiscount, strategies,
+  catalogPricePaise, completeScenario, emptyProductInputs, productStrategies,
 } = await vite.ssrLoadModule('/src/lib/profit-os.ts')
 const { ProfitOS } = await vite.ssrLoadModule('/src/pages/ProfitOS.tsx')
 const { ProfitLab } = await vite.ssrLoadModule('/src/components/profit-os/ProfitLab.tsx')
+const { productDraft, updateProductDraft } = await vite.ssrLoadModule('/src/lib/profit-os-drafts.ts')
+const { OrderAutopsy } = await vite.ssrLoadModule('/src/components/profit-os/OrderAutopsy.tsx')
 after(() => vite.close())
 
 test('the illustrative autopsy balances in integer paise and all strategies match the specification', () => {
@@ -84,4 +87,55 @@ test('page renders demo labels and suppresses misleading results for invalid inp
   assert.match(invalid, /aria-invalid="true"/)
   assert.match(invalid, /Enter valid scenario inputs/)
   assert.doesNotMatch(invalid, /Estimated contribution/)
+})
+
+
+const assumptions = {
+  acquisition: '1250', packaging: '30', payment: '40', marketing: '150', labour: '20.25',
+  tax: '5.50', discount: '15', deliveryFee: '12.50', courier: '120.05',
+}
+
+test('product switching and city switching keep independent draft amounts', () => {
+  let drafts = new Map()
+  drafts = updateProductDraft(drafts, 'pune', 'earbuds', assumptions)
+  drafts = updateProductDraft(drafts, 'delhi', 'earbuds', { courier: '200' })
+  drafts = updateProductDraft(drafts, 'pune', 'jacket', { acquisition: '400' })
+  assert.deepEqual(productDraft(drafts, 'pune', 'earbuds'), assumptions)
+  assert.equal(productDraft(drafts, 'delhi', 'earbuds').courier, '200')
+  assert.equal(productDraft(drafts, 'delhi', 'earbuds').acquisition, '')
+  assert.equal(productDraft(drafts, 'pune', 'jacket').acquisition, '400')
+  assert.equal(productDraft(drafts, 'pune', 'jacket').courier, '')
+  assert.deepEqual(productDraft(drafts, 'bengaluru', 'earbuds'), emptyProductInputs)
+})
+
+test('catalog prices use exact paise and selected city prices change contribution', () => {
+  const pune = completeScenario(catalogPricePaise(1999.99), assumptions)
+  assert.equal(pune.merchandisePaise, 199999n)
+  assert.deepEqual(calculateScenario(pune), {
+    discountPaise: 30000n, discountedMerchandisePaise: 169999n, revenuePaise: 171249n,
+    expensesPaise: 161580n, contributionPaise: 9669n,
+  })
+  const delhi = completeScenario(catalogPricePaise(1799.99), assumptions)
+  assert.equal(calculateScenario(delhi).contributionPaise, -7331n)
+  const comparison = productStrategies(delhi)
+  assert.equal(calculateScenario(comparison[0].scenario).contributionPaise, -7331n)
+  const feeStrategy = comparison.find(({ name }) => name.includes('delivery fees'))
+  assert.equal(calculateScenario(feeStrategy.scenario).contributionPaise, 0n)
+})
+
+test('unknown costs and unavailable prices do not produce an estimated contribution', () => {
+  for (const price of [undefined, null, NaN, -1, 123.456, '1999.99']) {
+    assert.equal(catalogPricePaise(price), null)
+    assert.equal(completeScenario(catalogPricePaise(price), assumptions), null)
+  }
+  assert.equal(completeScenario(199999n, { ...assumptions, labour: '' }), null)
+  assert.equal(completeScenario(199999n, { ...assumptions, tax: 'invalid' }), null)
+  assert.equal(completeScenario(199999n, { ...assumptions, tax: '0' }).taxPaise, 0n)
+  const markup = renderToStaticMarkup(createElement(OrderAutopsy, {
+    catalog: { price: 199999n, input: emptyProductInputs }, scenario: null,
+  }))
+  assert.match(markup, /Catalog selling price.*₹1,999.99/)
+  assert.match(markup, /Estimated contribution<\/dt><dd>Unknown/)
+  assert.match(markup, /Acquisition<\/dt><dd>Unknown/)
+  assert.doesNotMatch(markup, /Demo assumptions/)
 })

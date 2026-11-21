@@ -1,20 +1,17 @@
 import { ChartNoAxesCombined, Layers3 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { OrderAutopsy } from '../components/profit-os/OrderAutopsy'
-import { ProfitLab, type ScenarioInputs } from '../components/profit-os/ProfitLab'
+import { ProfitLab } from '../components/profit-os/ProfitLab'
+import { ProductProfitOS, type CatalogSelection } from '../components/profit-os/ProductProfitOS'
 import { StrategyComparison } from '../components/profit-os/StrategyComparison'
-import { baseline, displayInput, type Scenario } from '../lib/profit-os'
-
-function toInputs(scenario: Scenario): ScenarioInputs {
-  return {
-    discount: displayInput(scenario.discountBps),
-    courier: displayInput(scenario.courierPaise),
-    deliveryFee: displayInput(scenario.deliveryFeePaise),
-  }
-}
+import { baseline, toInputs, type Scenario, type ScenarioInputs } from '../lib/profit-os'
+import { updateProductDraft, type ProfitDrafts } from '../lib/profit-os-drafts'
 
 export function ProfitOS() {
   const [inputs, setInputs] = useState(() => toInputs(baseline))
+  const [mode, setMode] = useState<'demo' | 'product'>('demo')
+  const [selection, setSelection] = useState<CatalogSelection>({ city: 'pune', productId: '' })
+  const [drafts, setDrafts] = useState<ProfitDrafts>(() => new Map())
   const heading = useRef<HTMLHeadingElement>(null)
 
   useEffect(() => {
@@ -51,15 +48,27 @@ export function ProfitOS() {
             <p>Smart Profit Advisor</p>
           </div>
           <div className="profit-demo">
-            <span className="command-state">Demo assumptions</span>
-            <p>Read-only simulator using an illustrative sale. Changes apply only to this scenario.</p>
+            <span className="command-state">{mode === 'demo' ? 'Demo assumptions' : 'Unsaved financial assumptions'}</span>
+            <p>{mode === 'demo' ? 'Read-only simulator using an illustrative sale.' : 'Product scenarios use catalog prices and your modeled costs.'} Changes apply only to this scenario.</p>
           </div>
         </div>
-        <div className="profit-workspace">
-          <OrderAutopsy />
-          <ProfitLab inputs={inputs} onChange={changeInput} />
+        <div className="profit-modes" role="group" aria-label="ProfitOS mode">
+          <button type="button" className="clear-filters" aria-pressed={mode === 'demo'} onClick={() => setMode('demo')}>Demo scenario</button>
+          <button type="button" className="clear-filters" aria-pressed={mode === 'product'} onClick={() => setMode('product')}>Analyze a product</button>
         </div>
-        <StrategyComparison onApply={applyStrategy} />
+        {mode === 'demo' ? (
+          <>
+            <div className="profit-workspace">
+              <OrderAutopsy />
+              <ProfitLab inputs={inputs} onChange={changeInput} />
+            </div>
+            <StrategyComparison onApply={applyStrategy} />
+          </>
+        ) : (
+          <ProductProfitOS selection={selection} drafts={drafts} onSelect={setSelection}
+            onEdit={({ city, productId }, fields) =>
+              setDrafts((previous) => updateProductDraft(previous, city, productId, fields))} />
+        )}
       </main>
     </>
   )

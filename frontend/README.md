@@ -63,4 +63,6 @@ Use the backend's documented same-origin or same-site HTTPS setup. For an author
 
 ## ProfitOS
 
-Open `#/admin/profit-os` from the Inventory Command Center. Order Autopsy shows the fixed illustrative sale, while the Loss Prevention Lab and strategy presets calculate contribution from local demo assumptions. ProfitOS works in mock and live storefront configurations without calling an API or saving any scenario inputs.
+Open `#/admin/profit-os` from the Inventory Command Center. Order Autopsy shows the fixed illustrative sale, while the Loss Prevention Lab and strategy presets calculate contribution from local demo assumptions. The demo scenario works in mock and live storefront configurations without calling an API or saving any scenario inputs.
+
+Use **Analyze a product** for the selected city's catalog. ProfitOS reads the existing product listing endpoint when a live API base is configured and labels the mock catalog otherwise. Search filters the selected city's returned product names and IDs. Costs are explicit, unsaved assumptions keyed by product and city for the current visit. Blank costs and unavailable prices prevent contribution and strategy calculations. The original illustrative scenario remains available under **Demo scenario**.
