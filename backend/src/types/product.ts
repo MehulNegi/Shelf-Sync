@@ -22,6 +22,7 @@ export interface ProductFilters {
 }
 
 export interface ProductRepository {
+  hydrate?(ids: string[], city: City): Promise<Product[]>;
   list(filters: ProductFilters): Promise<Product[]>;
   findById(id: string, city: City): Promise<Product | undefined>;
 }

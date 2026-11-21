@@ -7,6 +7,7 @@ import { registerOrderRoutes, registerOrderTrackingRoutes } from './routes/order
 import { OrderService, OrderTrackingService } from './services/orders.js';
 import type { OrderRepository, OrderTrackingRepository } from './types/order.js';
 import { registerAdminRoutes } from './routes/admin.js';
+import { registerCartRoutes, type CartApi } from './routes/cart.js';
 import type { AdminApi } from './services/admin.js';
 
 export interface AppOptions {
@@ -14,6 +15,7 @@ export interface AppOptions {
   orders: OrderRepository;
   tracking?: OrderTrackingRepository;
   admin?: AdminApi;
+  cart?: CartApi;
   frontendOrigin: string;
   logger?: boolean;
 }
@@ -31,10 +33,16 @@ export function buildApp(options: AppOptions) {
     },
     ajv: { customOptions: { removeAdditional: false, coerceTypes: true, strictNumbers: true } }
   });
-  app.register(cors, { origin: options.frontendOrigin, methods: ['GET', 'POST', 'OPTIONS'] });
+  app.register(cors, () => async (request: import('fastify').FastifyRequest) => ({ origin: options.frontendOrigin, methods: ['GET','POST','PATCH','OPTIONS'],
+    credentials: Boolean(options.cart?.config.enabled && (request.url.startsWith('/api/cart/') || request.url.split('?')[0] === '/api/orders')) }));
   app.setErrorHandler<FastifyError>((error, request, reply) => {
     if (error instanceof ApiError) {
+      if (error.code === 'RESERVATION_BUSY') reply.header('Retry-After',1);
       return reply.code(error.statusCode).send({ success: false, error: { code: error.code, message: error.message } });
+    }
+    const cartRequest = request.url.startsWith('/api/cart/') || (request.url.split('?')[0] === '/api/orders' && request.body && typeof request.body === 'object' && 'reservationIds' in request.body);
+    if (cartRequest && (/^(08|53|57|58|E)/.test(error.code ?? '') || error.message === 'Cannot use a pool after calling end on the pool')) {
+      return reply.code(503).send({ success:false,error:{code:'DATABASE_UNAVAILABLE',message:'Cart data is temporarily unavailable'} });
     }
     const statusCode = error.statusCode && error.statusCode >= 400 && error.statusCode < 500 ? error.statusCode : 500;
     const code = error.validation ? 'VALIDATION_ERROR' : statusCode < 500 ? 'BAD_REQUEST' : 'INTERNAL_ERROR';
@@ -47,8 +55,9 @@ export function buildApp(options: AppOptions) {
     schema: { response: { 200: { type: 'object', required: ['status'], properties: { status: { type: 'string', const: 'ok' } } } } }
   }, async () => ({ status: 'ok' }));
   registerProductRoutes(app, new ProductService(options.products));
-  registerOrderRoutes(app, new OrderService(options.orders));
+  registerOrderRoutes(app, new OrderService(options.orders), options.cart);
   if (options.tracking) registerOrderTrackingRoutes(app, new OrderTrackingService(options.tracking));
   registerAdminRoutes(app, options.admin);
+  registerCartRoutes(app, options.cart);
   return app;
 }

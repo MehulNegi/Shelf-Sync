@@ -14,7 +14,9 @@ const productSchema = {
 };
 
 export function registerProductRoutes(app: FastifyInstance, service: ProductService) {
+  const noStore = async (_request: unknown, reply: import('fastify').FastifyReply) => { reply.header('Cache-Control','no-store'); };
   app.get<{ Querystring: ProductFilters }>('/api/products', {
+    onRequest: noStore,
     schema: {
       querystring: {
         type: 'object', required: ['city'], additionalProperties: false,
@@ -33,6 +35,7 @@ export function registerProductRoutes(app: FastifyInstance, service: ProductServ
   }, request => service.list(request.query));
 
   app.get<{ Params: { id: string }; Querystring: { city: City } }>('/api/products/:id', {
+    onRequest: noStore,
     schema: {
       params: { type: 'object', required: ['id'], properties: { id: { type: 'string', minLength: 1, maxLength: 100 } } },
       querystring: { type: 'object', required: ['city'], additionalProperties: false, properties: { city } },

@@ -1,6 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import type { Pool } from 'pg';
 import type { OrderCreated, OrderDetails, OrderInput, OrderRepository, OrderTracking, OrderTrackingRepository } from '../types/order.js';
+import { transaction } from '../db/transaction.js';
+import { InventoryTransaction } from '../db/inventory.js';
+import type { PoolClient } from 'pg';
 import { ApiError } from '../services/products.js';
 
 function toPaise(rupees: string): bigint {
@@ -16,53 +19,13 @@ export class PgOrderRepository implements OrderRepository, OrderTrackingReposito
   constructor(private readonly pool: Pool) {}
 
   async checkout(input: OrderInput): Promise<OrderCreated> {
-    const client = await this.pool.connect();
-    let discardClient = false;
-    try {
-      await client.query('BEGIN ISOLATION LEVEL READ COMMITTED');
-      const lines: { productId: string; quantity: number; price: string }[] = [];
-      let total = 0n;
-      // Sorting here also protects direct repository callers from inconsistent lock order.
-      for (const item of [...input.items].sort((a, b) => a.productId < b.productId ? -1 : a.productId > b.productId ? 1 : 0)) {
-        const product = await client.query<{ price: string }>('SELECT price FROM products WHERE id = $1', [item.productId]);
-        const price = product.rows[0]?.price;
-        // Unknown products and missing city inventory cannot be fulfilled either.
-        if (price === undefined) throw insufficientStock();
-        const updated = await client.query<{ quantity: number; version: string; updated_at: Date }>(`UPDATE inventory
-          SET quantity = quantity - $1, version = version + 1, updated_at = clock_timestamp()
-          WHERE product_id = $2 AND city = $3 AND quantity >= $1
-          RETURNING quantity, version, updated_at`, [item.quantity, item.productId, input.city]);
-        const inventory = updated.rows[0];
-        if (!inventory) throw insufficientStock();
-        const inventoryVersion = Number(inventory.version);
-        if (!Number.isSafeInteger(inventoryVersion)) throw new Error('Inventory event version exceeds JSON safe integer range');
-        const eventId = randomUUID();
-        const event = {
-          eventId, type: 'inventory.changed', schemaVersion: 1, productId: item.productId,
-          city: input.city, quantity: inventory.quantity, inventoryVersion,
-          occurredAt: inventory.updated_at.toISOString()
-        };
-        await client.query(`INSERT INTO outbox_events (id, event_type, payload, created_at)
-          VALUES ($1, $2, $3::jsonb, $4)`, [eventId, event.type, JSON.stringify(event), inventory.updated_at]);
-        total += toPaise(price) * BigInt(item.quantity);
-        if (total > 99999999999999n) throw new ApiError(400, 'VALIDATION_ERROR', 'Order total exceeds the supported INR amount');
-        lines.push({ ...item, price });
-      }
-      const orderId = `ord_${randomUUID()}`;
-      const totalInRupees = toRupees(total);
-      await client.query("INSERT INTO orders (id, city, status, total) VALUES ($1, $2, 'confirmed', $3)", [orderId, input.city, totalInRupees]);
-      for (const line of lines) {
-        await client.query(`INSERT INTO order_items (order_id, product_id, quantity, unit_price)
-          VALUES ($1, $2, $3, $4)`, [orderId, line.productId, line.quantity, line.price]);
-      }
-      await client.query('COMMIT');
-      return { success: true, orderId, status: 'confirmed', total: Number(totalInRupees) };
-    } catch (error) {
-      try { await client.query('ROLLBACK'); } catch { discardClient = true; }
-      throw error;
-    } finally {
-      client.release(discardClient);
-    }
+    return transaction(this.pool, async client => {
+      const inventory = await InventoryTransaction.lock(client, input.items.map(item => ({ productId: item.productId, city: input.city })));
+      await inventory.reconcile();
+      const result = await placeOrder(client, input, inventory);
+      await inventory.flush();
+      return result;
+    });
   }
 
   async findById(id: string): Promise<OrderDetails | undefined> {
@@ -100,4 +63,28 @@ export class PgOrderRepository implements OrderRepository, OrderTrackingReposito
       }))
     };
   }
+}
+
+// The caller owns the transaction and every inventory lock. No network I/O here.
+export async function placeOrder(client: PoolClient, input: OrderInput, inventory: InventoryTransaction, reserved = false): Promise<OrderCreated> {
+  const prices = await client.query<{ id: string; price: string }>('SELECT id, price FROM products WHERE id=ANY($1::text[])', [input.items.map(i => i.productId)]);
+  const lines: { productId: string; quantity: number; price: string }[] = [];
+  let total = 0n;
+  for (const item of [...input.items].sort((a,b) => a.productId < b.productId ? -1 : a.productId > b.productId ? 1 : 0)) {
+    const key = { productId: item.productId, city: input.city };
+    const stock = await inventory.snapshot(key);
+    const price = prices.rows.find(p => p.id === item.productId)?.price;
+    if (!stock || price === undefined || (reserved ? stock.quantity : stock.available) < item.quantity) throw insufficientStock();
+    const updated = await client.query('UPDATE inventory SET quantity=quantity-$1 WHERE product_id=$2 AND city=$3 AND quantity >= $1', [item.quantity, item.productId, input.city]);
+    if (updated.rowCount !== 1) throw insufficientStock();
+    inventory.mark(key, 'checkout.confirmed');
+    total += toPaise(price) * BigInt(item.quantity);
+    if (total > 99999999999999n) throw new ApiError(400, 'VALIDATION_ERROR', 'Order total exceeds the supported INR amount');
+    lines.push({ ...item, price });
+  }
+  const orderId = `ord_${randomUUID()}`;
+  const totalInRupees = toRupees(total);
+  await client.query("INSERT INTO orders(id,city,status,total) VALUES ($1,$2,'confirmed',$3)", [orderId, input.city, totalInRupees]);
+  for (const line of lines) await client.query('INSERT INTO order_items(order_id,product_id,quantity,unit_price) VALUES ($1,$2,$3,$4)', [orderId,line.productId,line.quantity,line.price]);
+  return { success: true, orderId, status: 'confirmed', total: Number(totalInRupees) };
 }

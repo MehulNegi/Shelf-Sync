@@ -1,5 +1,5 @@
 import type { Pool } from 'pg';
-import { cities } from '../types/product.js';
+import { parseInventoryEvent } from '../types/inventory-event.js';
 
 export const inventoryTopic = 'inventory-events';
 export interface OutboxMessage { topic: string; key: string; value: string }
@@ -17,13 +17,10 @@ export class OutboxError extends Error {
 interface OutboxRow { id: string; event_type: string; payload: Record<string, unknown> }
 function message(row: OutboxRow): OutboxMessage {
   const p = row.payload;
-  if (!p || row.event_type !== 'inventory.changed' || p.type !== row.event_type || p.eventId !== row.id ||
-      p.schemaVersion !== 1 || typeof p.productId !== 'string' || p.productId.length === 0 ||
-      !cities.some(city => city === p.city) || !Number.isSafeInteger(p.quantity) || Number(p.quantity) < 0 ||
-      !Number.isSafeInteger(p.inventoryVersion) || Number(p.inventoryVersion) < 1 ||
-      typeof p.occurredAt !== 'string' || !Number.isFinite(Date.parse(p.occurredAt))) {
-    throw new OutboxError(row.id, 'invalid_event');
-  }
+  try {
+    parseInventoryEvent(p);
+    if (p.eventId !== row.id || p.type !== row.event_type) throw new Error();
+  } catch { throw new OutboxError(row.id, 'invalid_event'); }
   return { topic: inventoryTopic, key: `${p.productId}:${p.city}`, value: JSON.stringify(p) };
 }
 

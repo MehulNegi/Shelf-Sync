@@ -1,3 +1,5 @@
+import { loadReservationConfig } from './config/reservations.js';
+import { PgCartRepository } from './repositories/cart.js';
 import { buildApp } from './app.js';
 import { loadConfig, SetupError } from './config/env.js';
 import { createPool } from './db/pool.js';
@@ -11,6 +13,7 @@ import { createAdminApi } from './services/admin.js';
 
 async function start() {
   const config = loadConfig();
+  const reservationConfig = loadReservationConfig(config);
   const searchConfig = process.env.OPENSEARCH_URL ? loadOpenSearchConfig() : undefined;
   const searchClient = searchConfig ? createOpenSearchClient(searchConfig) : undefined;
   const pool = createPool(config);
@@ -23,10 +26,10 @@ async function start() {
   const adminConfig = loadAdminConfig(config);
   const admin = createAdminApi(pool, adminConfig);
   if (adminConfig.mode === 'disabled') console.info(adminConfig.setupIssue ?? 'Admin API is disabled by default.');
-  const app = buildApp({ products, orders, tracking: orders, ...(admin ? { admin } : {}), frontendOrigin: config.frontendOrigin, logger: true });
+  const app = buildApp({ products, orders, tracking: orders, ...(admin ? { admin } : {}), cart: { config:reservationConfig, repository:new PgCartRepository(pool,reservationConfig) }, frontendOrigin: config.frontendOrigin, logger: true });
   app.addHook('onClose', async () => { try { await searchClient?.close(); } finally { await pool.end(); } });
   try {
-    await pool.query('SELECT 1');
+    await pool.query('SELECT 1 FROM cart_reservations LIMIT 0');
     await app.listen({ port: config.port, host: config.host });
   } catch {
     await app.close();

@@ -3,7 +3,7 @@ import type { Client } from '@opensearch-project/opensearch';
 import type { Product, ProductFilters } from '../types/product.js';
 import type { InventoryEvent } from '../types/inventory-event.js';
 
-export interface ProductDocument extends Product { inventoryVersion: number; catalogReady: boolean }
+export interface ProductDocument extends Product { inventoryVersion: number; catalogReady: boolean; physicalQuantity?: number; reservedQuantity?: number; nextExpirationAt?: string | null }
 export function documentId(productId: string, city: string) {
   return createHash('sha256').update(JSON.stringify([productId, city])).digest('hex');
 }
@@ -20,6 +20,9 @@ export function isTransientSearchError(error: unknown) {
 // metadata after an early event without overwriting that event's newer stock.
 export const bootstrapScript = `
 if (ctx._source.inventoryVersion == null || params.doc.inventoryVersion > ctx._source.inventoryVersion) {
+  ctx._source.physicalQuantity = params.doc.physicalQuantity;
+  ctx._source.reservedQuantity = params.doc.reservedQuantity;
+  ctx._source.nextExpirationAt = params.doc.nextExpirationAt;
   ctx._source.stock = params.doc.stock;
   ctx._source.available = params.doc.available;
   ctx._source.inventoryVersion = params.doc.inventoryVersion;
@@ -37,8 +40,11 @@ export const inventoryScript = `
 if (ctx._source.inventoryVersion == null || params.event.inventoryVersion > ctx._source.inventoryVersion) {
   ctx._source.id = params.event.productId;
   ctx._source.city = params.event.city;
-  ctx._source.stock = params.event.quantity;
-  ctx._source.available = params.event.quantity > 0;
+  ctx._source.physicalQuantity = params.event.quantity;
+  ctx._source.reservedQuantity = params.event.reservedQuantity;
+  ctx._source.nextExpirationAt = params.event.nextExpirationAt;
+  ctx._source.stock = params.event.availableQuantity;
+  ctx._source.available = params.event.availableQuantity > 0;
   ctx._source.inventoryVersion = params.event.inventoryVersion;
   ctx._source.lastEventId = params.event.eventId;
   ctx._source.occurredAt = params.event.occurredAt;
@@ -51,6 +57,7 @@ export const productMappings = {
     id: { type: 'keyword' as const }, name: { type: 'text' as const }, description: { type: 'text' as const },
     category: { type: 'keyword' as const }, price: { type: 'scaled_float' as const, scaling_factor: 100 },
     imageUrl: { type: 'keyword' as const, index: false }, city: { type: 'keyword' as const },
+    physicalQuantity: { type: 'integer' as const }, reservedQuantity: { type: 'integer' as const }, nextExpirationAt: { type:'date' as const },
     stock: { type: 'integer' as const }, available: { type: 'boolean' as const },
     inventoryVersion: { type: 'long' as const }, catalogReady: { type: 'boolean' as const },
     lastEventId: { type: 'keyword' as const }, occurredAt: { type: 'date' as const }
@@ -85,12 +92,12 @@ export class SearchProjection {
 
   async upsertProduct(doc: ProductDocument) {
     await this.client.update({ index: this.index, id: documentId(doc.id, doc.city), retry_on_conflict: 5,
-      body: { scripted_upsert: true, upsert: {}, script: { lang: 'painless', source: bootstrapScript, params: { doc } } } });
+      body: { scripted_upsert: true, upsert: {}, script: { lang: 'painless', source: bootstrapScript, params: { doc: { ...doc, physicalQuantity:doc.physicalQuantity??doc.stock,reservedQuantity:doc.reservedQuantity??0,nextExpirationAt:doc.nextExpirationAt??null } } } } });
   }
 
   async applyInventory(event: InventoryEvent) {
     await this.client.update({ index: this.index, id: documentId(event.productId, event.city), retry_on_conflict: 5,
-      body: { scripted_upsert: true, upsert: {}, script: { lang: 'painless', source: inventoryScript, params: { event } } } });
+      body: { scripted_upsert: true, upsert: {}, script: { lang: 'painless', source: inventoryScript, params: { event: { ...event, reservedQuantity:event.schemaVersion===2?event.reservedQuantity:0,availableQuantity:event.schemaVersion===2?event.availableQuantity:event.quantity,nextExpirationAt:event.schemaVersion===2?event.nextExpirationAt:null } } } } });
   }
 
   async search(filters: ProductFilters): Promise<Product[]> {
