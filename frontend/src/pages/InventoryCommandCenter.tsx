@@ -44,7 +44,10 @@ export function InventoryCommandCenter() {
             <span className="brand-icon"><Layers3 size={22} aria-hidden="true" /></span>
             ShelfSync
           </a>
-          <a href="#top" className="orders-nav-link">Back to shopping</a>
+          <div className="command-nav-links">
+            <a href="#/admin/profit-os" className="orders-nav-link">ProfitOS</a>
+            <a href="#top" className="orders-nav-link">Back to shopping</a>
+          </div>
         </nav>
       </header>
       <main className="shell command-center">
