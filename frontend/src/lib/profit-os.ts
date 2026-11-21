@@ -8,6 +8,8 @@ export interface Scenario {
   packagingPaise: bigint
   paymentPaise: bigint
   marketingPaise: bigint
+  labourPaise: bigint
+  taxPaise: bigint
   deliveryFeePaise: bigint
 }
 
@@ -19,6 +21,8 @@ export const baseline: Readonly<Scenario> = {
   packagingPaise: 3_000n,
   paymentPaise: 4_000n,
   marketingPaise: 15_000n,
+  labourPaise: 0n,
+  taxPaise: 0n,
   deliveryFeePaise: 0n,
 }
 
@@ -32,14 +36,18 @@ function roundedDiscount(price: bigint, rate: bigint) {
   return (price * rate + fullRate / 2n) / fullRate
 }
 
+export function calculateMerchandise(price: bigint, rate: bigint) {
+  const discountPaise = roundedDiscount(price, rate)
+  return { discountPaise, discountedMerchandisePaise: price - discountPaise }
+}
+
 export function calculateScenario(scenario: Scenario) {
-  const discountPaise = roundedDiscount(scenario.merchandisePaise, scenario.discountBps)
-  const discountedMerchandisePaise = scenario.merchandisePaise - discountPaise
-  const revenuePaise = discountedMerchandisePaise + scenario.deliveryFeePaise
+  const merchandise = calculateMerchandise(scenario.merchandisePaise, scenario.discountBps)
+  const revenuePaise = merchandise.discountedMerchandisePaise + scenario.deliveryFeePaise
   const expensesPaise = scenario.acquisitionPaise + scenario.courierPaise + scenario.packagingPaise +
-    scenario.paymentPaise + scenario.marketingPaise
+    scenario.paymentPaise + scenario.marketingPaise + scenario.labourPaise + scenario.taxPaise
   return {
-    discountPaise, discountedMerchandisePaise, revenuePaise, expensesPaise,
+    ...merchandise, revenuePaise, expensesPaise,
     contributionPaise: revenuePaise - expensesPaise,
   }
 }
@@ -101,3 +109,88 @@ export const strategies = [
   { name: 'Lower courier cost', scenario: { ...baseline, courierPaise: 12_000n } },
   { name: 'Apply both adjustments', scenario: { ...baseline, discountBps: 1_500n, courierPaise: 12_000n } },
 ] as const
+
+export const labFields = [
+  { name: 'discount', label: 'Retailer discount (%)' },
+  { name: 'courier', label: 'Courier cost (₹)' },
+  { name: 'deliveryFee', label: 'Customer delivery fee (₹)' },
+] as const
+
+export const expenseFields = [
+  { name: 'acquisition', label: 'Acquisition' },
+  { name: 'packaging', label: 'Packaging' },
+  { name: 'payment', label: 'Payment processing' },
+  { name: 'marketing', label: 'Marketing' },
+  { name: 'labour', label: 'Labour' },
+  { name: 'tax', label: 'Non-recoverable taxes' },
+] as const
+
+type LabField = typeof labFields[number]['name']
+type ExpenseField = typeof expenseFields[number]['name']
+export type ScenarioInputs = Record<LabField, string>
+export type ProductInputs = Record<LabField | ExpenseField, string>
+
+export const emptyProductInputs: Readonly<ProductInputs> = {
+  discount: '0', deliveryFee: '0', courier: '', acquisition: '', packaging: '', payment: '',
+  marketing: '', labour: '', tax: '',
+}
+
+export function parseRate(text: string) {
+  const rate = parseHundredths(text)
+  return rate !== null && rate <= fullRate ? rate : null
+}
+
+export function catalogPricePaise(price: unknown) {
+  return typeof price === 'number' && Number.isFinite(price) ? parseHundredths(String(price)) : null
+}
+
+export function completeScenario(price: bigint | null, input: ProductInputs): Scenario | null {
+  const discountBps = parseRate(input.discount)
+  const courierPaise = parseHundredths(input.courier)
+  const deliveryFeePaise = parseHundredths(input.deliveryFee)
+  const acquisitionPaise = parseHundredths(input.acquisition)
+  const packagingPaise = parseHundredths(input.packaging)
+  const paymentPaise = parseHundredths(input.payment)
+  const marketingPaise = parseHundredths(input.marketing)
+  const labourPaise = parseHundredths(input.labour)
+  const taxPaise = parseHundredths(input.tax)
+  if (price === null || discountBps === null || courierPaise === null || deliveryFeePaise === null ||
+      acquisitionPaise === null || packagingPaise === null || paymentPaise === null ||
+      marketingPaise === null || labourPaise === null || taxPaise === null) return null
+  return {
+    merchandisePaise: price, discountBps, courierPaise, deliveryFeePaise, acquisitionPaise,
+    packagingPaise, paymentPaise, marketingPaise, labourPaise, taxPaise,
+  }
+}
+
+export function toInputs(scenario: Scenario): ProductInputs {
+  return {
+    discount: displayInput(scenario.discountBps),
+    courier: displayInput(scenario.courierPaise),
+    deliveryFee: displayInput(scenario.deliveryFeePaise),
+    acquisition: displayInput(scenario.acquisitionPaise),
+    packaging: displayInput(scenario.packagingPaise),
+    payment: displayInput(scenario.paymentPaise),
+    marketing: displayInput(scenario.marketingPaise),
+    labour: displayInput(scenario.labourPaise),
+    tax: displayInput(scenario.taxPaise),
+  }
+}
+
+export function productStrategies(scenario: Scenario) {
+  const options = [{ name: 'Current assumptions', scenario }]
+  const { discount, shortfallPaise, breakEvenCourierPaise, minimumDeliveryFeePaise } = advise(scenario)
+  if (shortfallPaise > 0n) {
+    if (discount.kind === 'available' && discount.rate < scenario.discountBps) {
+      options.push({ name: 'Reduce to the break-even discount', scenario: { ...scenario, discountBps: discount.rate } })
+    }
+    if (breakEvenCourierPaise !== null) {
+      options.push({ name: 'Reduce courier cost to break even', scenario: { ...scenario, courierPaise: breakEvenCourierPaise } })
+    }
+    options.push({ name: 'Cover the shortfall with delivery fees', scenario: { ...scenario, deliveryFeePaise: minimumDeliveryFeePaise } })
+  } else {
+    if (scenario.discountBps > 0n) options.push({ name: 'Remove the discount', scenario: { ...scenario, discountBps: 0n } })
+    if (scenario.deliveryFeePaise > 0n) options.push({ name: 'Waive the delivery fee', scenario: { ...scenario, deliveryFeePaise: 0n } })
+  }
+  return options
+}

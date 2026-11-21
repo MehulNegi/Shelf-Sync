@@ -456,3 +456,19 @@ footer { background: #f5eef7; border-top: 1px solid var(--color-line); }
 @media (max-width: 34rem) {
   .profit-inputs { grid-template-columns: minmax(0, 1fr); }
 }
+
+.profit-modes { display: flex; flex-wrap: wrap; gap: .45rem; margin-bottom: .85rem; }
+.profit-modes [aria-pressed="true"] { background: var(--purple); border-color: var(--purple); color: white; }
+.profit-modes [aria-pressed="true"]:hover { background: var(--purple-dark); }
+.profit-catalog { margin-bottom: .85rem; padding: clamp(.9rem, 2vw, 1.35rem); }
+.profit-catalog-fields { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) minmax(0, 1.6fr); gap: .65rem; margin-block: .7rem; }
+.profit-catalog-fields select { max-width: 100%; }
+.profit-selected-product { padding: .75rem; border-radius: .65rem; background: var(--lavender); overflow-wrap: anywhere; }
+.profit-selected-product h3 { font-weight: 750; }
+.profit-selected-product dl { display: flex; flex-wrap: wrap; gap: .55rem 1.3rem; margin-top: .35rem; font-size: .875rem; }
+.profit-selected-product dt { color: var(--muted); }
+.profit-selected-product dd { font-weight: 650; }
+
+@media (max-width: 34rem) {
+  .profit-catalog-fields { grid-template-columns: minmax(0, 1fr); }
+}

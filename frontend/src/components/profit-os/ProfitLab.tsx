@@ -1,23 +1,21 @@
 import { Lightbulb, SlidersHorizontal } from 'lucide-react'
 import { Input } from '../ui/input'
-import { advise, baseline, calculateScenario, contributionTone, formatDiscount, formatPaise, parseHundredths, type Scenario } from '../../lib/profit-os'
+import {
+  advise, baseline, calculateScenario, completeScenario, contributionTone, expenseFields,
+  formatDiscount, formatPaise, labFields, parseHundredths, parseRate, toInputs,
+  type ProductInputs, type Scenario, type ScenarioInputs,
+} from '../../lib/profit-os'
 
-export interface ScenarioInputs {
-  discount: string
-  courier: string
-  deliveryFee: string
-}
+type LabProps =
+  | { inputs: ScenarioInputs; onChange: (field: keyof ScenarioInputs, value: string) => void; catalog?: undefined }
+  | { catalog: {
+      input: ProductInputs
+      scenario: Scenario | null
+      hasPrice: boolean
+      onChange: (field: keyof ProductInputs, value: string) => void
+    } }
 
-interface LabProps {
-  inputs: ScenarioInputs
-  onChange: (field: keyof ScenarioInputs, value: string) => void
-}
-
-const fields = [
-  { name: 'discount', label: 'Retailer discount (%)', error: 'Enter 0–100% with up to two decimal places.' },
-  { name: 'courier', label: 'Courier cost (₹)', error: 'Enter a non-negative amount with up to two decimal places.' },
-  { name: 'deliveryFee', label: 'Customer delivery fee (₹)', error: 'Enter a non-negative amount with up to two decimal places.' },
-] as const
+const baselineInputs = toInputs(baseline)
 
 const baselineContribution = calculateScenario(baseline).contributionPaise
 
@@ -45,32 +43,39 @@ function SmartAdvisor({ scenario }: { scenario: Scenario }) {
   )
 }
 
-export function ProfitLab({ inputs, onChange }: LabProps) {
-  const parsedDiscount = parseHundredths(inputs.discount)
-  const discount = parsedDiscount !== null && parsedDiscount <= 10_000n ? parsedDiscount : null
-  const courier = parseHundredths(inputs.courier)
-  const deliveryFee = parseHundredths(inputs.deliveryFee)
-  const values = { discount, courier, deliveryFee }
-  const scenario = discount === null || courier === null || deliveryFee === null ? null : {
-    ...baseline, discountBps: discount, courierPaise: courier, deliveryFeePaise: deliveryFee,
-  }
+export function ProfitLab(props: LabProps) {
+  const { catalog } = props
+  const input = props.catalog ? props.catalog.input : { ...baselineInputs, ...props.inputs }
+  const scenario = catalog ? catalog.scenario : completeScenario(baseline.merchandisePaise, input)
   const result = scenario && calculateScenario(scenario)
+  const fields = catalog
+    ? [...labFields, ...expenseFields.map(({ name, label }) => ({ name, label: `${label} cost (₹)` }))]
+    : labFields
 
   return (
     <section className="command-panel profit-lab" aria-labelledby="lab-heading">
       <h2 id="lab-heading"><SlidersHorizontal size={20} aria-hidden="true" /> Loss Prevention Lab</h2>
-      <p>Change the assumptions to compare estimated outcomes.</p>
+      <p>{catalog ? 'Unsaved financial assumptions per unit. Enter 0 only when you intend to model no expense.' : 'Change the assumptions to compare estimated outcomes.'}</p>
       <div className="profit-inputs" role="group" aria-label="Scenario inputs">
-        {fields.map(({ name, label, error }) => (
-          <label className="filter-control" key={name}>
-            {label}
-            <Input id={`profit-${name}`} inputMode="decimal" maxLength={15} value={inputs[name]}
-              aria-invalid={values[name] === null}
-              aria-describedby={values[name] === null ? `profit-${name}-error` : undefined}
-              onChange={(event) => onChange(name, event.target.value)} />
-            {values[name] === null && <span id={`profit-${name}-error`} className="checkout-error">{error}</span>}
-          </label>
-        ))}
+        {fields.map(({ name, label }) => {
+          const value = input[name]
+          const invalid = value.trim() !== '' && (name === 'discount' ? parseRate(value) : parseHundredths(value)) === null
+          const error = name === 'discount' ? 'Enter 0–100% with up to two decimal places.'
+            : 'Enter a non-negative amount with up to two decimal places.'
+          return (
+            <label className="filter-control" key={name}>
+              {label}
+              <Input id={`profit-${name}`} inputMode="decimal" maxLength={15} value={value}
+                placeholder={catalog ? 'Unknown' : undefined} aria-invalid={invalid}
+                aria-describedby={invalid ? `profit-${name}-error` : undefined}
+                onChange={(event) => {
+                  if (props.catalog) props.catalog.onChange(name, event.target.value)
+                  else if (name === 'discount' || name === 'courier' || name === 'deliveryFee') props.onChange(name, event.target.value)
+                }} />
+              {invalid && <span id={`profit-${name}-error`} className="checkout-error">{error}</span>}
+            </label>
+          )
+        })}
       </div>
       {scenario && result ? (
         <>
@@ -83,13 +88,16 @@ export function ProfitLab({ inputs, onChange }: LabProps) {
                 {formatPaise(result.contributionPaise, true)}
               </dd>
             </div>
-            <div><dt>Change vs baseline</dt><dd data-sign={contributionTone(result.contributionPaise - baselineContribution)}>
+            {!catalog && <div><dt>Change vs baseline</dt><dd data-sign={contributionTone(result.contributionPaise - baselineContribution)}>
               {formatPaise(result.contributionPaise - baselineContribution, true)}
-            </dd></div>
+            </dd></div>}
           </dl>
           <SmartAdvisor scenario={scenario} />
         </>
-      ) : <p className="profit-validation" role="status">Enter valid scenario inputs to calculate an estimate.</p>}
+      ) : <p className="profit-validation" role="status">{catalog
+        ? catalog.hasPrice ? 'Incomplete data. Enter valid amounts for all costs and scenario inputs to calculate an estimate.'
+          : 'Incomplete data. The catalog selling price is unavailable.'
+        : 'Enter valid scenario inputs to calculate an estimate.'}</p>}
     </section>
   )
 }
