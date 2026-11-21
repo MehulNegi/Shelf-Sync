@@ -91,3 +91,9 @@ Set these variables in the Vercel **Production** environment, then redeploy so t
 5. To roll back normally, disable the Vercel timer flag first and keep signed routing while holds drain, then disable Render reservations. For suspected gateway compromise, stop protected traffic immediately and coordinate key rotation with the backend owner.
 
 The cart timer uses the server's `expiresAt` and `serverTime`. It does not start until the server acknowledges the hold. Catalog and tracking traffic stay on the external rewrite, while the three cart endpoints and order submission use the B14 function. See the B14 runbook at `backend/docs/signed-reservation-gateway.md` on the gateway branch.
+
+### Retailer dashboard on the public demo
+
+Open `/#/admin` and use the retailer navigation for My Shop, My Products, Customer Orders, and My Earnings. The dashboard tries the existing admin read endpoints and uses explicitly labeled sample data for any section that returns `503 ADMIN_DISABLED`. Mock storefront builds use the samples directly. Backend access restrictions remain in effect.
+
+In demo inventory, **Edit demo stock** updates the sample rows and sample shop totals in the current dashboard view. A reload resets these changes. My Earnings uses the storefront catalog and its existing editable sample costs. No dashboard demo action writes to the backend.

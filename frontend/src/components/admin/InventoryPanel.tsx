@@ -1,7 +1,7 @@
 import { Database } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import { formatPrice } from '../../lib/format-price'
-import type { AdminSnapshot, InventoryQuery, StockStatus } from '../../types/admin'
+import type { AdminInventoryRow, AdminSnapshot, InventoryQuery, StockStatus } from '../../types/admin'
 import { cities, type City } from '../../types/products'
 import { Input } from '../ui/input'
 
@@ -16,9 +16,10 @@ interface InventoryPanelProps {
   pageNumber: number
   onFilters: (filters: InventoryQuery) => void
   onPage: (cursor?: string) => void
+  onDemoStockChange?: (row: AdminInventoryRow, stock: number) => void
 }
 
-export function InventoryPanel({ data, loading, filters, pageNumber, onFilters, onPage }: InventoryPanelProps) {
+export function InventoryPanel({ data, loading, filters, pageNumber, onFilters, onPage, onDemoStockChange }: InventoryPanelProps) {
   const [search, setSearch] = useState('')
   const needle = search.trim().toLowerCase()
   const visible = data?.inventory.filter((row) =>
@@ -75,12 +76,24 @@ export function InventoryPanel({ data, loading, filters, pageNumber, onFilters, 
               <thead><tr>
                 <th scope="col">Product</th><th scope="col">Category</th><th scope="col">City</th>
                 <th scope="col">Price</th><th scope="col">Stock</th><th scope="col">Status</th>
+                {onDemoStockChange && <th scope="col">Edit demo stock</th>}
               </tr></thead>
               <tbody>{visible.map((row) => (
                 <tr key={`${row.productId}:${row.city}`}>
                   <th scope="row">{row.name}</th><td>{row.category}</td><td>{cities[row.city]}</td>
                   <td>{formatPrice(row.price)}</td><td>{row.stock}</td>
                   <td><span className="command-stock-badge" data-status={row.stockStatus}>{stockLabels[row.stockStatus]}</span></td>
+                  {onDemoStockChange && <td>
+                    <form className="demo-stock-edit" onSubmit={(event) => {
+                      event.preventDefault()
+                      const stock = Number(new FormData(event.currentTarget).get('stock'))
+                      onDemoStockChange(row, stock)
+                    }}>
+                      <Input key={row.stock} name="stock" type="number" min={0} max={999999} required defaultValue={row.stock}
+                        aria-label={`Demo stock for ${row.name} in ${cities[row.city]}`} />
+                      <button className="clear-filters" type="submit" aria-label={`Save demo stock for ${row.name} in ${cities[row.city]}`}>Save</button>
+                    </form>
+                  </td>}
                 </tr>
               ))}</tbody>
             </table>

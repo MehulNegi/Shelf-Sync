@@ -7,7 +7,8 @@ import { createServer } from 'vite'
 
 process.env.VITE_API_BASE_URL = 'http://127.0.0.1:3000/api'
 const vite = await createServer({ server: { middlewareMode: true, ws: false, watch: null } })
-const { adminErrorMessage, clearsAdminData, isLocalAdminConfiguration, loadAdminSnapshot } = await vite.ssrLoadModule('/src/services/admin.ts')
+const { adminErrorMessage, clearsAdminData, loadAdminPanels } = await vite.ssrLoadModule('/src/services/admin.ts')
+const { demoAdminSnapshot, demoInventoryRows, demoStockUpdate } = await vite.ssrLoadModule('/src/mocks/admin.ts')
 const { startAdminRefresh } = await vite.ssrLoadModule('/src/services/admin-refresh.ts')
 const { OverviewPanels, RecentOrders, EventActivity } = await vite.ssrLoadModule('/src/components/admin/DashboardPanels.tsx')
 const { InventoryPanel } = await vite.ssrLoadModule('/src/components/admin/InventoryPanel.tsx')
@@ -31,7 +32,7 @@ test('contract responses parse unchanged and only contracted inventory query fie
     return ok(url)
   })
   const query = { city: 'pune', category: 'Electronics', stockStatus: 'low_stock', limit: 25, cursor: 'opaque+cursor/==' }
-  assert.deepEqual(await loadAdminSnapshot(query, signal), fixture)
+  assert.deepEqual(await loadAdminPanels(query, signal), Object.fromEntries(Object.entries(fixture).map(([key, data]) => [key, { source: 'live', data }])))
   const calls = fetch.mock.calls.map(({ arguments: [url] }) => new URL(url))
   assert.deepEqual(calls.map((url) => url.pathname), [
     '/api/admin/overview', '/api/admin/inventory', '/api/admin/orders', '/api/admin/events',
@@ -83,26 +84,55 @@ test('admin errors distinguish authentication, denial, disabled mode, unavailabl
       if (url.includes('/inventory?')) return Response.json({ success: false, error: { code, message: 'Error' } }, { status })
       return ok(url)
     })
-    await assert.rejects(loadAdminSnapshot({ limit: 50 }, signal),
-      (error) => error.status === status && expected.test(adminErrorMessage(error)) && clearsAdminData(error) === clear)
+    const panels = await loadAdminPanels({ limit: 50 }, signal)
+    assert.equal(panels.overview.source, 'live')
+    if (code === 'ADMIN_DISABLED') {
+      assert.deepEqual(panels.inventory, { source: 'demo' })
+    } else {
+      assert.equal(panels.inventory.source, 'unavailable')
+      const { error } = panels.inventory
+      assert.equal(error.status, status)
+      assert.match(adminErrorMessage(error), expected)
+      assert.equal(clearsAdminData(error), clear)
+    }
   }
 })
 
 test('network and malformed responses fail safely and a subsequent retry can recover', async (t) => {
   const fetch = t.mock.method(globalThis, 'fetch', async () => { throw new TypeError('Offline') })
-  await assert.rejects(loadAdminSnapshot({ limit: 50 }, signal), { code: 'NETWORK_ERROR' })
+  assert.equal((await loadAdminPanels({ limit: 50 }, signal)).orders.error.code, 'NETWORK_ERROR')
   fetch.mock.mockImplementation(async () => Response.json({}))
-  await assert.rejects(loadAdminSnapshot({ limit: 50 }, signal), { code: 'INVALID_ADMIN_RESPONSE' })
+  assert.equal((await loadAdminPanels({ limit: 50 }, signal)).orders.error.code, 'INVALID_ADMIN_RESPONSE')
   fetch.mock.mockImplementation(async (url) => ok(url))
-  assert.deepEqual(await loadAdminSnapshot({ limit: 50 }, signal), fixture)
+  assert.deepEqual((await loadAdminPanels({ limit: 50 }, signal)).orders, { source: 'live', data: fixture.orders })
 })
 
-test('only loopback browser and backend addresses are eligible for local-demo requests', () => {
-  const local = new URL('http://localhost:5173/#/admin')
-  assert(isLocalAdminConfiguration(local, 'http://127.0.0.1:3000'))
-  assert(!isLocalAdminConfiguration(local, 'https://example.com'))
-  assert(!isLocalAdminConfiguration(local, 'http://user:password@127.0.0.1:3000'))
-  assert(!isLocalAdminConfiguration(new URL('https://shelf.example'), 'http://127.0.0.1:3000'))
+test('demo stock is isolated, reflected in totals, filterable, and editable only in demo inventory', () => {
+  const now = new Date('2026-11-21T12:00:00Z')
+  const rows = demoInventoryRows()
+  const original = demoAdminSnapshot(rows, { limit: 50 }, now)
+  const row = rows[0]
+  const edited = demoStockUpdate(rows, row, 0)
+  const query = { limit: 1, city: row.city, stockStatus: 'out_of_stock' }
+  const page = demoAdminSnapshot(edited, query, now)
+  assert.equal(page.overview.totalStockUnits, original.overview.totalStockUnits - row.stock)
+  assert.equal(page.overview.outOfStockRecords, original.overview.outOfStockRecords + 1)
+  assert.equal(page.inventory.inventory[0].stock, 0)
+  assert.equal(page.inventory.page.nextCursor, 'demo:1')
+  const next = demoAdminSnapshot(edited, { ...query, cursor: 'demo:1' }, now)
+  assert.notEqual(next.inventory.inventory[0].productId, page.inventory.inventory[0].productId)
+  assert.equal(demoInventoryRows()[0].stock, row.stock)
+  assert.equal(demoStockUpdate(rows, row, -1), rows)
+  assert(original.orders.orders.every(({ orderId }) => orderId.startsWith('demo-order-')))
+  const props = { data: page.inventory, loading: false, pageNumber: 1, onFilters() {}, onPage() {} }
+  assert.doesNotMatch(renderToStaticMarkup(createElement(InventoryPanel, props)), /Edit demo stock/)
+  assert.match(renderToStaticMarkup(createElement(InventoryPanel, { ...props, onDemoStockChange() {} })), /Save demo stock/)
+})
+
+test('demo pagination never sends a demo cursor to live inventory', async (t) => {
+  const fetch = t.mock.method(globalThis, 'fetch', async (url) => ok(url))
+  await loadAdminPanels({ limit: 1, cursor: 'demo:1' }, signal)
+  assert.equal(new URL(fetch.mock.calls[1].arguments[0]).search, '?limit=1')
 })
 
 test('polling skips in-flight work, refreshes at five seconds and discards responses from stopped requests', async (t) => {
