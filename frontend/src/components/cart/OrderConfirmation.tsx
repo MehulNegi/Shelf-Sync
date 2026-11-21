@@ -5,6 +5,7 @@ import { formatPrice } from '../../lib/format-price'
 import { isMockMode } from '../../services/backend'
 import { getOrder } from '../../services/orders'
 import type { OrderCreated } from '../../types/orders'
+import { OrderItems } from '../orders/OrderItems'
 import { cities, type City } from '../../types/products'
 
 export function OrderConfirmation({ order, city, onClose }: { order: OrderCreated; city: City; onClose: () => void }) {
@@ -35,17 +36,11 @@ export function OrderConfirmation({ order, city, onClose }: { order: OrderCreate
           <button type="button" className="text-button" onClick={() => setAttempt(attempt + 1)}>Retry order details</button>
         </div>
       )}
-      {details && (
-        <ul className="cart-list" aria-label="Ordered items">
-          {details.items.map((item) => (
-            <li key={item.productId} className="order-line">
-              <span>{item.name} × {item.quantity}</span>
-              <span>{formatPrice(item.unitPrice)} each</span>
-            </li>
-          ))}
-        </ul>
-      )}
-      <button type="button" className="primary-button" onClick={onClose}>Continue shopping</button>
+      {details && <OrderItems items={details.items} />}
+      <div className="confirmation-actions">
+        <button type="button" className="primary-button" onClick={onClose}>Continue shopping</button>
+        <a className="orders-nav-link" href="#/orders">My Orders</a>
+      </div>
     </div>
   )
 }
