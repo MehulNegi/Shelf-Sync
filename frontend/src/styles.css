@@ -415,3 +415,44 @@ footer { background: #f5eef7; border-top: 1px solid var(--color-line); }
 .reservation-expired { margin-top: .35rem; color: #872d40; font-size: .875rem; font-weight: 650; }
 .reservation-clock[data-urgent="true"] { background: #f9e6e9; color: #872d40; }
 .reservation-retry { display: flex; flex-wrap: wrap; align-items: center; gap: 0 .6rem; }
+
+.command-nav-links { display: flex; flex-wrap: wrap; gap: .3rem; }
+.profit-intro { align-items: end; }
+.profit-title-icon { display: grid; place-items: center; width: 2.65rem; aspect-ratio: 1; margin-bottom: .65rem; border-radius: .7rem; color: white; background: var(--purple); }
+.profit-intro > div:first-child p { color: var(--purple-dark); font-weight: 650; }
+.profit-demo { max-width: 29rem; }
+.profit-demo p { font-size: .875rem; }
+.profit-workspace { display: grid; grid-template-columns: minmax(0, .9fr) minmax(0, 1.25fr); align-items: start; gap: .85rem; margin-bottom: .85rem; }
+.profit-workspace > *, .profit-strategies { min-width: 0; padding: clamp(.9rem, 2vw, 1.35rem); }
+.profit-autopsy h3 { margin-top: .9rem; font-weight: 700; color: var(--purple-dark); }
+.profit-ledger { display: grid; gap: .35rem; margin-top: .45rem; font-size: .875rem; }
+.profit-ledger > div { display: flex; justify-content: space-between; align-items: baseline; gap: .35rem .7rem; }
+.profit-ledger dt, .profit-results dt { color: var(--muted); }
+.profit-ledger dd, .profit-results dd, .profit-strategy-table td[data-sign] { font-weight: 700; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.profit-subtotal { border-top: 1px solid var(--color-line); padding-top: .4rem; }
+.profit-autopsy-total { padding: .65rem; margin-top: .8rem; border-radius: .65rem; background: #f8eff9; }
+.profit-inputs, .profit-results { display: grid; gap: .65rem; margin-top: .85rem; }
+.profit-inputs { grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: start; }
+.profit-results { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.profit-results > div { padding: .65rem .75rem; border: 1px solid var(--color-line); border-radius: .7rem; background: #fcf8fc; }
+.profit-results dt { font-size: .825rem; }
+.profit-results dd { font-size: clamp(1.05rem, 2.3vw, 1.45rem); }
+.profit-results > .profit-result-primary { background: var(--lavender); border-color: #decaeb; }
+.profit-os [data-sign="loss"] { color: #892f48; }
+.profit-os [data-sign="gain"] { color: #1d593c; }
+.profit-os [data-sign="even"] { color: var(--purple-dark); }
+.profit-advice, .profit-validation { margin-top: .85rem; padding: .75rem .85rem; border-radius: .7rem; background: #f5eef8; }
+.profit-advice h3 { display: flex; align-items: center; gap: .4rem; color: var(--purple-dark); font-weight: 750; }
+.profit-advice p, .profit-advice ul { font-size: .875rem; }
+.profit-advice ul { list-style: disc; margin: .35rem 0 0 1.1rem; }
+.profit-advice .profit-caption { font-size: .8125rem; }
+.profit-strategies .command-table-wrap { position: relative; }
+.profit-strategy-table td:last-child { text-align: end; }
+.profit-strategy-table button { white-space: nowrap; }
+
+@media (max-width: 55rem) {
+  .profit-workspace { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 34rem) {
+  .profit-inputs { grid-template-columns: minmax(0, 1fr); }
+}

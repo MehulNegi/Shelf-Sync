@@ -60,3 +60,7 @@ Open `http://localhost:5173/#/admin`. The frontend origin must match the backend
 The storefront keeps its existing checkout and mock mode by default. Set `VITE_CART_RESERVATIONS=true` with a live `VITE_API_BASE_URL` only after deploying the complete backend reservation rollout in [C7](../contracts/api.md). The current backend does not implement C7. A flag alone cannot enable reservations.
 
 Use the backend's documented same-origin or same-site HTTPS setup. For an authorized HTTP loopback demo, use the same hostname for both ports and enable the backend's separate local HTTP reservation exception. The reservation cookie is managed by the backend. The browser keeps desired cart quantities in local storage and may keep an unresolved request's ID and payload in tab-scoped session storage for safe replay. It reconciles holds from the API after reload, uses backend deadlines for display, and never automatically renews an expired reservation. Existing mock checkout does not simulate holds.
+
+## ProfitOS
+
+Open `#/admin/profit-os` from the Inventory Command Center. Order Autopsy shows the fixed illustrative sale, while the Loss Prevention Lab and strategy presets calculate contribution from local demo assumptions. ProfitOS works in mock and live storefront configurations without calling an API or saving any scenario inputs.
