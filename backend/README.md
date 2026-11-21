@@ -68,6 +68,16 @@ Outbox rows use a UUID matching `payload.eventId`, `event_type=inventory.changed
 
 `GET /api/orders/:id` reads persisted orders/items and returns standard-format HTTP 404 for missing orders. Unit prices and totals are checkout snapshots; names come from the current product record. Each POST is a new purchase; request replay/idempotency is not part of the shared contract.
 
+## Persisted order tracking
+
+`GET /api/orders/:id/tracking` returns one order's persisted status, original creation time, and chronological history. Existing checkout and order-details responses are unchanged. The additive integration specification, including the proposed shared-contract addition and exact response fields, is in [`contracts/order-tracking.md`](contracts/order-tracking.md); shared root contracts are unchanged.
+
+Apply `002_order_tracking.sql` with `npm run migrate` before starting the updated server. It adds `order_status_history`, an insert trigger that records initial status in the checkout transaction, and a guard that rejects status changes until an authorized workflow exists. The migration briefly locks order writes while recording legacy snapshots and installing the trigger. Existing orders and their creation times/statuses are preserved. Legacy snapshots explicitly have an unknown occurrence time (`occurredAt:null`); `recordedAt` is only the time the database recorded the observation.
+
+New successful checkouts have one real, timestamped `confirmed` entry. No shipping dates, courier names, tracking numbers, delivery estimates, or time-based progression are generated. There is no suitable authorization mechanism, so fulfillment transitions remain disabled and no public update or order-list endpoint is exposed. The future authorized workflow must enforce `confirmed → processing → shipped → delivered` and timestamp each transition atomically; it is not implemented here.
+
+Tracking failure rolls back with checkout: the new history entry, order/items, inventory/version, and inventory outbox writes commit or roll back together. Kafka/OpenSearch inventory events and consumers are unchanged.
+
 ## Aiven Kafka outbox publisher
 
 Copy the existing Aiven Kafka **Quick Connect** settings into `backend/.env`, using the same authentication method and its matching port. The template documents both SASL and client-certificate/mTLS modes. Do not change the service's authentication configuration or create new credentials just to use this worker. KafkaJS supports the required TLS/SASL client options; see [KafkaJS configuration](https://kafka.js.org/docs/configuration) and [Aiven authentication](https://aiven.io/docs/products/kafka/concepts/auth-types).
@@ -162,7 +172,7 @@ RUN_PIPELINE_TESTS=1 npm run test:pipeline
 
 Unit tests cover queries, fallback, TLS configuration, retries, offset handling, and shutdown. PostgreSQL integration tests cover real catalog reads using a projection double. The live search suite tests actual OpenSearch mappings, fuzzy HTTP queries, duplicate/old events, and stale-bootstrap protection. The live pipeline suite creates a temporary PostgreSQL schema, OpenSearch index, and Kafka group, performs a real checkout, publishes the committed event, and asserts both the projected stock/version and committed Kafka offset. It deletes only its own test index/schema; Kafka probe events/group metadata remain subject to normal retention. Probe product IDs start with `test_` and must not be treated as real demo catalog entries. Live suites skip unless explicitly enabled and fail if enabled with unavailable services.
 
-Latest local verification: live Aiven Kafka publication/observation passed for event `d89be966-ac0e-4643-8065-c49c08fee075`. OpenSearch credentials were not configured during implementation, so live OpenSearch scripts/search and the full Kafka-to-OpenSearch pipeline remain unverified. Kafka publication alone does not establish end-to-end synchronization.
+Latest local verification: the live OpenSearch suite passed all four checks. With the tracking migration enabled, checkout event `9ceec19e-8463-4d7a-b7cf-1ce709e90839` passed through the outbox and Aiven Kafka to OpenSearch (`inventoryVersion=2`, `stock=0`), with the consumer offset committed after processing. These checks used isolated test schemas, indexes, and consumer groups.
 
 ## API integration
 
@@ -173,6 +183,7 @@ The shared contract in `../contracts/api.md` remains unchanged.
 - `GET /api/products/:id?city=pune` returns the same product shape, or standard-format 404.
 - `POST /api/orders` creates a confirmed order (HTTP 201) or returns the standard error envelope, including HTTP 409 for unavailable stock.
 - `GET /api/orders/:id` returns persisted order details or standard-format HTTP 404.
+- `GET /api/orders/:id/tracking` adds read-only tracking for a single order, documented in the backend integration specification.
 
 City is required and accepts only `pune`, `delhi`, or `bengaluru`. Categories are matched exactly (seed uses `electronics`, `apparel`, `groceries`). Configured OpenSearch provides typo-tolerant name/description search; the PostgreSQL fallback provides case-insensitive literal substrings. Price bounds are inclusive, nonnegative INR values; inverted bounds return 400. Queries reject unknown keys, repeated scalar parameters, and excessively long text. Unknown categories and searches return empty results. Products remain visible even when selected-city stock is zero (`stock:0`, `available:false`). The catalog is unpaginated; `total` is the filtered product count.
 
@@ -195,8 +206,10 @@ The separate integration suite skips unless explicitly enabled:
 RUN_DB_TESTS=1 npm run test:integration
 ```
 
-Integration tests create random isolated schemas in the configured database and drop only those schemas afterward; the test role needs CREATE privileges. They never truncate/reset demo tables. The foundation suite applies actual migrations twice, seeds twice, exercises real SQL search/category/price/city filtering through HTTP, tests constraints, and verifies reseeding preserves changed stock/version.
+Integration tests create random isolated schemas in the configured database and drop only those schemas afterward; the test role needs CREATE privileges. They never truncate/reset demo tables. Test files run sequentially to stay within small Aiven connection limits; each last-unit race still launches concurrent requests with `Promise.all`. The foundation suite applies actual migrations twice, seeds twice, exercises real SQL search/category/price/city filtering through HTTP, tests constraints, and verifies reseeding preserves changed stock/version.
 
 The checkout suite uses dedicated generated products and checks single/multi-item success, insufficient stock, strict quantity validation, duplicate IDs, decimal server-side totals, order retrieval, city availability, complete rollback when a later item fails, late database write failure, and event payloads. Ten independent last-unit races each launch two checkout requests with `Promise.all` and assert exactly one 201, one 409, stock zero, one confirmed order, and one committed event. A reversed multi-item cart race checks deterministic ordering. These concurrency assertions run against real PostgreSQL, never a mocked database. Use a dedicated test database where possible. An enabled suite fails on unavailable credentials/TLS/database errors instead of skipping. Default test output and integration output must be reported separately.
 
-Next task: configure Aiven OpenSearch and run the live search/pipeline suites, then validate the last-unit race in the complete storefront.
+Tracking integration tests also exercise the migration against pre-existing orders, known/unknown timestamp semantics, chronological reads, disabled status changes, and rollback on history write failure. Last-unit races assert exactly one persisted confirmation-history record as well as one order/event.
+
+Next task: integrate the read-only tracking endpoint into the storefront and define an authorized fulfillment workflow before enabling real status transitions.

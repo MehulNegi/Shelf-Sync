@@ -28,7 +28,7 @@ test('real PostgreSQL migrations, repeat-safe seed, API filtering, and constrain
   });
   await admin.query(`CREATE SCHEMA "${schema}"`);
   schemaCreated = true;
-  assert.equal(await migrate(pool), 1);
+  assert.equal(await migrate(pool), 2);
   assert.equal(await migrate(pool), 0);
   await seed(pool);
   await seed(pool);

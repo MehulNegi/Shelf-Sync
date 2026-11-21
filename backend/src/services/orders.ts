@@ -1,5 +1,5 @@
 import { cities, type City } from '../types/product.js';
-import type { OrderInput, OrderRepository } from '../types/order.js';
+import type { OrderInput, OrderRepository, OrderTrackingRepository } from '../types/order.js';
 import { ApiError } from './products.js';
 
 const invalid = () => new ApiError(400, 'VALIDATION_ERROR', 'Provide a supported city and 1–100 cart items with product IDs and positive integer quantities');
@@ -34,5 +34,15 @@ export class OrderService {
     const order = await this.repository.findById(id);
     if (!order) throw new ApiError(404, 'ORDER_NOT_FOUND', 'Order not found');
     return order;
+  }
+}
+
+export class OrderTrackingService {
+  constructor(private readonly repository: OrderTrackingRepository) {}
+
+  async findById(id: string) {
+    const tracking = await this.repository.findTrackingById(id);
+    if (!tracking) throw new ApiError(404, 'ORDER_NOT_FOUND', 'Order not found');
+    return tracking;
   }
 }

@@ -16,7 +16,7 @@
     "migrate": "tsx src/db/migrate.ts",
     "seed": "tsx src/db/seed.ts",
     "test": "tsx --test tests/*.test.ts",
-    "test:integration": "tsx --test tests/integration/*.test.ts",
+    "test:integration": "tsx --test --test-concurrency=1 tests/integration/*.test.ts",
     "test:kafka": "tsx --test tests/live/kafka.test.ts",
     "test:search": "tsx --test tests/live/search.test.ts",
     "test:pipeline": "tsx --test tests/live/pipeline.test.ts"

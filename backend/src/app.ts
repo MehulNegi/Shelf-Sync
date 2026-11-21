@@ -3,13 +3,14 @@ import cors from '@fastify/cors';
 import type { ProductRepository } from './types/product.js';
 import { ApiError, ProductService } from './services/products.js';
 import { registerProductRoutes } from './routes/products.js';
-import { registerOrderRoutes } from './routes/orders.js';
-import { OrderService } from './services/orders.js';
-import type { OrderRepository } from './types/order.js';
+import { registerOrderRoutes, registerOrderTrackingRoutes } from './routes/orders.js';
+import { OrderService, OrderTrackingService } from './services/orders.js';
+import type { OrderRepository, OrderTrackingRepository } from './types/order.js';
 
 export interface AppOptions {
   products: ProductRepository;
   orders: OrderRepository;
+  tracking?: OrderTrackingRepository;
   frontendOrigin: string;
   logger?: boolean;
 }
@@ -19,6 +20,12 @@ export function buildApp(options: AppOptions) {
     logger: options.logger ?? false,
     logController: new LogController({ disableRequestLogging: true }),
     bodyLimit: 64 * 1024,
+    routerOptions: {
+      onMaxParamLength: (_path, _request, response) => {
+        response.writeHead(414, { 'content-type': 'application/json; charset=utf-8' });
+        response.end(JSON.stringify({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Request path parameter is too long' } }));
+      }
+    },
     ajv: { customOptions: { removeAdditional: false, coerceTypes: true, strictNumbers: true } }
   });
   app.register(cors, { origin: options.frontendOrigin, methods: ['GET', 'POST', 'OPTIONS'] });
@@ -38,5 +45,6 @@ export function buildApp(options: AppOptions) {
   }, async () => ({ status: 'ok' }));
   registerProductRoutes(app, new ProductService(options.products));
   registerOrderRoutes(app, new OrderService(options.orders));
+  if (options.tracking) registerOrderTrackingRoutes(app, new OrderTrackingService(options.tracking));
   return app;
 }
