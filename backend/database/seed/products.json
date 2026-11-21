@@ -1,0 +1,14 @@
+[
+  { "id": "prod_001", "name": "Wireless Bluetooth Earphones", "description": "Noise-isolating wireless earphones", "category": "electronics", "price": 1999, "imageUrl": "/images/earphones.jpg", "stock": [1, 8, 3] },
+  { "id": "prod_002", "name": "USB-C Fast Charger", "description": "Compact 30W charger for phones and tablets", "category": "electronics", "price": 899, "imageUrl": "/images/charger.jpg", "stock": [12, 7, 18] },
+  { "id": "prod_003", "name": "Portable Bluetooth Speaker", "description": "Water-resistant speaker with twelve-hour battery", "category": "electronics", "price": 2499, "imageUrl": "/images/speaker.jpg", "stock": [4, 0, 9] },
+  { "id": "prod_004", "name": "Wireless Optical Mouse", "description": "Comfortable wireless mouse with adjustable sensitivity", "category": "electronics", "price": 649, "imageUrl": "/images/mouse.jpg", "stock": [15, 11, 6] },
+  { "id": "prod_005", "name": "Cotton Crew Neck T-Shirt", "description": "Breathable navy cotton t-shirt, size medium", "category": "apparel", "price": 499, "imageUrl": "/images/tshirt.jpg", "stock": [20, 14, 25] },
+  { "id": "prod_006", "name": "Classic Denim Jeans", "description": "Regular fit blue denim jeans, waist 32", "category": "apparel", "price": 1499, "imageUrl": "/images/jeans.jpg", "stock": [8, 13, 5] },
+  { "id": "prod_007", "name": "Lightweight Running Jacket", "description": "Wind-resistant zip jacket for morning runs", "category": "apparel", "price": 1799, "imageUrl": "/images/jacket.jpg", "stock": [0, 6, 10] },
+  { "id": "prod_008", "name": "Cotton Ankle Socks", "description": "Three pairs of soft everyday cotton socks", "category": "apparel", "price": 249, "imageUrl": "/images/socks.jpg", "stock": [30, 22, 17] },
+  { "id": "prod_009", "name": "Premium Basmati Rice", "description": "Aromatic long-grain basmati rice, 1 kg", "category": "groceries", "price": 159.50, "imageUrl": "/images/rice.jpg", "stock": [40, 55, 32] },
+  { "id": "prod_010", "name": "Whole Wheat Atta", "description": "Stone-ground whole wheat flour, 5 kg", "category": "groceries", "price": 279, "imageUrl": "/images/atta.jpg", "stock": [28, 45, 19] },
+  { "id": "prod_011", "name": "Assam Breakfast Tea", "description": "Rich Assam black tea leaves, 250 g", "category": "groceries", "price": 189, "imageUrl": "/images/tea.jpg", "stock": [16, 24, 12] },
+  { "id": "prod_012", "name": "Cold Pressed Groundnut Oil", "description": "Traditional cold pressed cooking oil, 1 litre", "category": "groceries", "price": 329, "imageUrl": "/images/oil.jpg", "stock": [11, 9, 21] }
+]
