@@ -1,4 +1,4 @@
-import { AlertCircle } from 'lucide-react'
+import { AlertCircle, ShoppingBag } from 'lucide-react'
 import { useCallback, useRef, useState } from 'react'
 import { useResource } from '../../hooks/use-resource'
 import { formatPrice } from '../../lib/format-price'
@@ -73,7 +73,7 @@ export function CartDialog({ city, items, onAdjust, onRemove, onPlaced, refreshC
     <Dialog title={order ? 'Order confirmation' : `Cart · ${cities[city]}`} onClose={onClose} busy={pending}>
       {order ? <OrderConfirmation order={order} city={city} onClose={onClose} /> : (
         <div className="checkout-content">
-          <p>Each city has its own cart. Switch cities to browse your other carts.</p>
+          <p className="cart-context">Your items for {cities[city]}. Carts are saved separately by city.</p>
           {isMockMode && <p className="mock-notice">Mock checkout · Orders and stock changes are simulated for this session.</p>}
           {message && (
             <div className="checkout-alert" role="alert">
@@ -82,10 +82,11 @@ export function CartDialog({ city, items, onAdjust, onRemove, onPlaced, refreshC
             </div>
           )}
           {!items.length ? (
-            <>
+            <div className="cart-empty">
+              <span className="placeholder-icon"><ShoppingBag size={25} aria-hidden="true" /></span>
               <p>Your cart is empty.</p>
               <button type="button" className="primary-button" onClick={onClose}>Continue shopping</button>
-            </>
+            </div>
           ) : (
             <>
               {!result && <p className="progress-note" role="status">Checking cart availability in {cities[city]}…</p>}
@@ -101,7 +102,7 @@ export function CartDialog({ city, items, onAdjust, onRemove, onPlaced, refreshC
                   const name = product?.name ?? productId
                   return (
                     <li key={productId} className="cart-line">
-                      <div>
+                      <div className="cart-line-info">
                         <strong>{name}</strong>
                         {product && <p>{formatPrice(product.price)} each</p>}
                         {products && <p className={quantity > stock ? 'checkout-error' : ''}>
@@ -111,11 +112,13 @@ export function CartDialog({ city, items, onAdjust, onRemove, onPlaced, refreshC
                         </p>}
                       </div>
                       <div className="cart-controls">
-                        <button type="button" className="icon-button" aria-label={`Decrease ${name} quantity`}
-                          disabled={pending || quantity <= 1} onClick={() => onAdjust(productId, -1, stock)}>−</button>
-                        <span aria-label={`${name} quantity`}>{quantity}</span>
-                        <button type="button" className="icon-button" aria-label={`Increase ${name} quantity`}
-                          disabled={pending || quantity >= stock} onClick={() => onAdjust(productId, 1, stock)}>+</button>
+                        <div className="quantity-stepper">
+                          <button type="button" className="icon-button" aria-label={`Decrease ${name} quantity`}
+                            disabled={pending || quantity <= 1} onClick={() => onAdjust(productId, -1, stock)}>−</button>
+                          <span aria-label={`${name} quantity`}>{quantity}</span>
+                          <button type="button" className="icon-button" aria-label={`Increase ${name} quantity`}
+                            disabled={pending || quantity >= stock} onClick={() => onAdjust(productId, 1, stock)}>+</button>
+                        </div>
                         <button type="button" className="text-button" aria-label={`Remove ${name}`}
                           disabled={pending} onClick={() => onRemove(productId)}>Remove</button>
                       </div>

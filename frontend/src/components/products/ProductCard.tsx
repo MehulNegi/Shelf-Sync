@@ -1,4 +1,4 @@
-import { Check, Laptop, Minus, Package, Shirt, ShoppingBasket, type LucideIcon } from 'lucide-react'
+import { Check, Laptop, Minus, Package, Plus, Shirt, ShoppingBasket, type LucideIcon } from 'lucide-react'
 import { useState } from 'react'
 import { formatPrice } from '../../lib/format-price'
 import { baseUrl, isMockMode } from '../../services/backend'
@@ -24,7 +24,7 @@ export function ProductCard({ product, quantity, onAdd, onDetails, showDescripti
   const [failedImages, setFailedImages] = useState<string[]>([])
   const image = candidates.find((url) => !failedImages.includes(url))
   return (
-    <Card className="overflow-hidden min-w-0">
+    <Card className="product-card">
       <div className={`product-image ${product.category}`}>
         {image
           ? <img key={image} src={image} alt={product.name} width="300" height="300" decoding="async"
@@ -51,6 +51,7 @@ export function ProductCard({ product, quantity, onAdd, onDetails, showDescripti
         <div className="product-actions">
           <button type="button" className="primary-button" disabled={!product.available || quantity >= product.stock}
             onClick={() => onAdd(product)} aria-label={`Add ${product.name} to cart`}>
+            {product.available && quantity < product.stock && <Plus size={16} aria-hidden="true" />}
             {!product.available ? 'Unavailable' : quantity >= product.stock ? 'Stock limit reached' : 'Add to cart'}
           </button>
           <span role="status">{quantity > 0 && `${quantity} in cart`}</span>
