@@ -563,3 +563,6 @@ footer { background: #f5eef7; border-top: 1px solid var(--color-line); }
 @media (max-width: 560px) {
   .earnings-sliders { grid-template-columns: minmax(0, 1fr); }
 }
+
+.demo-stock-edit { display: flex; align-items: center; gap: .45rem; }
+.demo-stock-edit input { width: 6rem; }
