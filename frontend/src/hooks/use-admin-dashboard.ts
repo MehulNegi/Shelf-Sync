@@ -15,19 +15,19 @@ const offlineDemo: AdminPanels = {
   overview: { source: 'demo' }, inventory: { source: 'demo' }, orders: { source: 'demo' }, events: { source: 'demo' },
 }
 
-function retainLastLive<T>(next: AdminPanel<T>, previous?: AdminPanel<T>): AdminPanel<T> {
+export function retainLastLive<T>(next: AdminPanel<T>, previous?: AdminPanel<T>): AdminPanel<T> {
   if (next.source === 'unavailable' && !clearsAdminData(next.error) && previous && 'data' in previous) {
     return { ...next, data: previous.data }
   }
   return next
 }
 
-export function useAdminDashboard(query: InventoryQuery) {
+export function useAdminDashboard(query: InventoryQuery, enabled = true) {
   const [state, setState] = useState<RefreshState>()
   const refresh = useRef<() => void>(() => {})
 
   useEffect(() => {
-    if (isMockMode) return
+    if (!enabled || isMockMode) return
     const polling = startAdminRefresh((signal) => loadAdminPanels(query, signal), (event) => {
       setState((previous) => {
         const current = previous?.query === query ? previous : undefined
@@ -51,7 +51,7 @@ export function useAdminDashboard(query: InventoryQuery) {
       polling.stop()
       refresh.current = () => {}
     }
-  }, [query])
+  }, [query, enabled])
 
   return {
     state: isMockMode ? { query, loading: false, data: offlineDemo } : state?.query === query ? state : undefined,

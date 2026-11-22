@@ -103,3 +103,7 @@ The cart timer uses the server's `expiresAt` and `serverTime`. It does not start
 Open `/#/admin` and use the retailer navigation for My Shop, My Products, Customer Orders, and My Earnings. The dashboard tries the existing admin read endpoints and uses explicitly labeled sample data for any section that returns `503 ADMIN_DISABLED`. Mock storefront builds use the samples directly. Backend access restrictions remain in effect.
 
 In demo inventory, **Edit demo stock** updates the sample rows and sample shop totals in the current dashboard view. A reload resets these changes. My Earnings uses the storefront catalog and its existing editable sample costs. No dashboard demo action writes to the backend.
+
+### Customer Orders cross-device feed (F21)
+
+Customer Orders requests `GET /api/demo/orders` without query parameters. It fetches on open and on return to the tab, then polls every five seconds while visible. The B15 feed returns up to 20 orders. A successful empty feed displays **No recent orders**. HTTP 503 with `DEMO_ORDERS_DISABLED` switches to labeled sample orders. Transient failures keep the last available live results visible.
