@@ -103,3 +103,9 @@ The cart timer uses the server's `expiresAt` and `serverTime`. It does not start
 Open `/#/admin` and use the retailer navigation for My Shop, My Products, Customer Orders, and My Earnings. The dashboard tries the existing admin read endpoints and uses explicitly labeled sample data for any section that returns `503 ADMIN_DISABLED`. Mock storefront builds use the samples directly. Backend access restrictions remain in effect.
 
 In demo inventory, **Edit demo stock** updates the sample rows and sample shop totals in the current dashboard view. A reload resets these changes. My Earnings uses the storefront catalog and its existing editable sample costs. No dashboard demo action writes to the backend.
+
+### Customer Orders cross-device feed (F21)
+
+Customer Orders polls while the page and browser tab are visible, fetching immediately on open and on return. Set `VITE_DEMO_ORDERS_API_PATH` to the confirmed B15 relative `/api/…` path after Laptop B publishes the contract. Without that setting, Customer Orders uses the existing read-only `/api/admin/orders` endpoint and its labeled fallback. No new production endpoint is assumed by default.
+
+The provisional B15 adapter expects the existing C6 orders envelope (`asOf`, `orders`, `page.limit`, `page.nextCursor`) and sends `limit=10` with an optional opaque `cursor`. The UI uses only `orderId`, `city`, `total`, `createdAt`, and `status`. HTTP 503 with `ADMIN_DISABLED` or `DEMO_ORDERS_DISABLED` switches to sample orders. Transient failures keep the last available live page visible with an error message. Confirm the path, envelope, pagination, and disabled response with B15 before configuring a Vercel build.

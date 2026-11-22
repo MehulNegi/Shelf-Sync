@@ -1,21 +1,21 @@
 import { ArrowRight, RefreshCw, Wallet } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { EventActivity, OverviewPanels, RecentOrders } from '../components/admin/DashboardPanels'
+import { EventActivity, OverviewPanels } from '../components/admin/DashboardPanels'
 import { RetailerHeader, type RetailerView } from '../components/admin/RetailerHeader'
 import { InventoryPanel } from '../components/admin/InventoryPanel'
 import { useAdminDashboard } from '../hooks/use-admin-dashboard'
 import { adminErrorMessage, type AdminPanel } from '../services/admin'
 import { demoAdminSnapshot, demoInventoryRows, demoStockUpdate } from '../mocks/admin'
+import { CustomerOrders } from './CustomerOrders'
 import { ApiError } from '../services/api-error'
 import type { AdminInventoryRow, InventoryQuery } from '../types/admin'
 
 const refreshTime = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'medium' })
 
-const titles = { shop: 'My Shop', products: 'My Products', orders: 'Customer Orders' }
+const titles = { shop: 'My Shop', products: 'My Products' }
 const descriptions = {
   shop: '',
   products: 'Check what is in stock and find products that need restocking.',
-  orders: 'See the latest orders placed in your shop and their current status.',
 }
 
 function panelData<T>(panel: AdminPanel<T> | undefined, demo: T): T | undefined {
@@ -30,17 +30,16 @@ export function InventoryCommandCenter({ view = 'shop' }: { view?: Exclude<Retai
   const [cursors, setCursors] = useState<(string | undefined)[]>([undefined])
   const cursor = cursors.at(-1)
   const query = useMemo(() => ({ ...filters, cursor }), [filters, cursor])
-  const { state, refresh, canRefresh } = useAdminDashboard(query)
+  const { state, refresh, canRefresh } = useAdminDashboard(query, view !== 'orders')
   const data = state?.data
   const loading = !state || state.loading
   const sample = useMemo(() => demoAdminSnapshot(demoStock, query, demoDate), [demoStock, query, demoDate])
   const overview = panelData(data?.overview, sample.overview)
   const inventory = panelData(data?.inventory, sample.inventory)
-  const orders = panelData(data?.orders, sample.orders)
   const events = panelData(data?.events, sample.events)
   const panels = view === 'shop'
     ? [{ name: 'Shop totals', panel: data?.overview }, { name: 'Shop update history', panel: data?.events }]
-    : view === 'products' ? [{ name: 'Inventory', panel: data?.inventory }] : [{ name: 'Recent orders', panel: data?.orders }]
+    : [{ name: 'Inventory', panel: data?.inventory }]
   const demoSections = panels.filter(({ panel }) => panel?.source === 'demo').map(({ name }) => name)
   const liveSections = panels.some(({ panel }) => panel?.source === 'live' || panel?.source === 'unavailable' && panel.data)
   const demoInventory = data?.inventory.source === 'demo'
@@ -62,6 +61,8 @@ export function InventoryCommandCenter({ view = 'shop' }: { view?: Exclude<Retai
   function changePage(next?: string) {
     setCursors((previous) => next ? [...previous, next] : previous.slice(0, -1))
   }
+
+  if (view === 'orders') return <CustomerOrders sample={sample.orders} />
 
   return (
     <>
@@ -130,8 +131,6 @@ export function InventoryCommandCenter({ view = 'shop' }: { view?: Exclude<Retai
               if (filters.stockStatus) setCursors([undefined])
             } : undefined} />
         )}
-        {view === 'orders' && (orders ? <RecentOrders orders={orders.orders} /> : loading &&
-          <div className="command-panel command-metric-skeleton motion-safe:animate-pulse" aria-hidden="true" />)}
         {view === 'shop' && (
           <a className="command-panel retailer-earnings-link" href="#/admin/profit-os">
             <Wallet size={24} aria-hidden="true" />

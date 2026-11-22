@@ -52,7 +52,7 @@ function isPage<K extends ListName>(value: unknown, name: K): value is AdminSnap
 
 async function readAdmin(path: string, signal: AbortSignal) {
   try {
-    return await requestJson<unknown>(`/admin/${path}`, 200, { signal, credentials: 'omit', redirect: 'error' })
+    return await requestJson<unknown>(`/${path}`, 200, { signal, credentials: 'omit', redirect: 'error' })
   } catch (error) {
     if (error instanceof SyntaxError) throw invalidResponse()
     throw error
@@ -75,13 +75,17 @@ async function readPanel<T>(path: string, signal: AbortSignal, valid: (value: un
     return { source: 'live', data }
   } catch (error) {
     if (signal.aborted) throw error
-    if (error instanceof ApiError && error.status === 503 && error.code === 'ADMIN_DISABLED') return { source: 'demo' }
+    if (error instanceof ApiError && error.status === 503 && ['ADMIN_DISABLED', 'DEMO_ORDERS_DISABLED'].includes(error.code)) return { source: 'demo' }
     return { source: 'unavailable', error }
   }
 }
 
 export function clearsAdminData(error: unknown) {
   return error instanceof ApiError && ([401, 403, 404].includes(error.status) || error.code === 'ADMIN_DISABLED')
+}
+
+export function readOrderPanel(path: string, signal: AbortSignal) {
+  return readPanel(path, signal, (value): value is AdminSnapshot['orders'] => isPage(value, 'orders'))
 }
 
 export async function loadAdminPanels(query: InventoryQuery, signal: AbortSignal): Promise<AdminPanels> {
@@ -91,10 +95,10 @@ export async function loadAdminPanels(query: InventoryQuery, signal: AbortSignal
     if (value && (key !== 'cursor' || !value.startsWith('demo:'))) params.set(key, value)
   }
   const [overview, inventory, orders, events] = await Promise.all([
-    readPanel('overview', signal, isOverview),
-    readPanel(`inventory?${params}`, signal, (value): value is AdminSnapshot['inventory'] => isPage(value, 'inventory')),
-    readPanel('orders?limit=10', signal, (value): value is AdminSnapshot['orders'] => isPage(value, 'orders')),
-    readPanel('events?limit=10', signal, (value): value is AdminSnapshot['events'] => isPage(value, 'events')),
+    readPanel('admin/overview', signal, isOverview),
+    readPanel(`admin/inventory?${params}`, signal, (value): value is AdminSnapshot['inventory'] => isPage(value, 'inventory')),
+    readOrderPanel('admin/orders?limit=10', signal),
+    readPanel('admin/events?limit=10', signal, (value): value is AdminSnapshot['events'] => isPage(value, 'events')),
   ])
   return { overview, inventory, orders, events }
 }
