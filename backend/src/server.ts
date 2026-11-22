@@ -15,10 +15,13 @@ import { createAdminApi } from './services/admin.js';
 import { validateRenderEnvironment } from './config/deployment.js';
 import { databaseReadiness } from './services/readiness.js';
 import { installShutdown } from './services/shutdown.js';
+import { loadDemoOrderFeedConfig } from './config/demo-orders.js';
+import { PgDemoOrderRepository } from './repositories/demo-orders.js';
 
 async function start() {
   const config = loadConfig();
   validateRenderEnvironment('api');
+  const demoOrderFeed = loadDemoOrderFeedConfig();
   const reservationConfig = loadReservationConfig(config);
   const searchConfig = process.env.OPENSEARCH_URL ? loadOpenSearchConfig() : undefined;
   const searchClient = searchConfig ? createOpenSearchClient(searchConfig) : undefined;
@@ -36,6 +39,7 @@ async function start() {
   let draining = false;
   const probe = databaseReadiness(pool);
   const app = buildApp({ products, orders, tracking: orders, ...(admin ? { admin } : {}), ...(profitability?{profitability}:{}), cart: { config:reservationConfig, repository:new PgCartRepository(pool,reservationConfig) }, frontendOrigin: config.frontendOrigin, logger: true,
+    demoOrders: { enabled: demoOrderFeed.enabled, repository: new PgDemoOrderRepository(pool) },
     readiness: async () => !draining && await probe() && !draining });
   app.addHook('onClose', async () => { try { await searchClient?.close(); } finally { await pool.end(); } });
   const shutdown = installShutdown(() => {

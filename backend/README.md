@@ -1,5 +1,7 @@
 # ShelfSync backend
 
+B15 demo order feed: [exact response contract, frontend adapter mapping and manual activation](docs/demo-orders.md). `GET /api/demo/orders` is read-only, default-off and limited to the owner-confirmed demo-only database. Disable `DEMO_ORDER_FEED_ENABLED` before introducing real/private customer orders; protected admin APIs remain disabled.
+
 Render B10: see [deployment configuration, security blockers and rollback](docs/render-deployment.md). This prepares four independent services; it does not deploy them. Public admin and ProfitOS stay disabled. The Vercel/Render cookie topology must be verified before enabling reservations.
 
 ProfitOS B8: see [implementation, policy gates and migration instructions](docs/profitability-implementation.md). The module defaults off; F14 remains frontend-only, and automatic checkout financial capture is deferred pending the C8.1 policy decisions.

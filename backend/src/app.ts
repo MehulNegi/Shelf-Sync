@@ -11,6 +11,7 @@ import { registerCartRoutes, type CartApi } from './routes/cart.js';
 import { registerProfitabilityRoutes } from './routes/profitability.js';
 import type { ProfitabilityApi } from './services/profitability.js';
 import type { AdminApi } from './services/admin.js';
+import { registerDemoOrderRoutes, type DemoOrderFeed } from './routes/demo-orders.js';
 
 export interface AppOptions {
   products: ProductRepository;
@@ -22,6 +23,7 @@ export interface AppOptions {
   frontendOrigin: string;
   logger?: boolean;
   readiness?: () => Promise<boolean>;
+  demoOrders?: DemoOrderFeed;
 }
 
 export function buildApp(options: AppOptions) {
@@ -77,6 +79,7 @@ export function buildApp(options: AppOptions) {
   registerOrderRoutes(app, new OrderService(options.orders), options.cart);
   if (options.tracking) registerOrderTrackingRoutes(app, new OrderTrackingService(options.tracking));
   registerAdminRoutes(app, options.admin);
+  registerDemoOrderRoutes(app, options.demoOrders);
   registerProfitabilityRoutes(app, options.profitability);
   registerCartRoutes(app, options.cart);
   return app;
