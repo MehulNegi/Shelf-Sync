@@ -106,6 +106,4 @@ In demo inventory, **Edit demo stock** updates the sample rows and sample shop t
 
 ### Customer Orders cross-device feed (F21)
 
-Customer Orders polls while the page and browser tab are visible, fetching immediately on open and on return. Set `VITE_DEMO_ORDERS_API_PATH` to the confirmed B15 relative `/api/…` path after Laptop B publishes the contract. Without that setting, Customer Orders uses the existing read-only `/api/admin/orders` endpoint and its labeled fallback. No new production endpoint is assumed by default.
-
-The provisional B15 adapter expects the existing C6 orders envelope (`asOf`, `orders`, `page.limit`, `page.nextCursor`) and sends `limit=10` with an optional opaque `cursor`. The UI uses only `orderId`, `city`, `total`, `createdAt`, and `status`. HTTP 503 with `ADMIN_DISABLED` or `DEMO_ORDERS_DISABLED` switches to sample orders. Transient failures keep the last available live page visible with an error message. Confirm the path, envelope, pagination, and disabled response with B15 before configuring a Vercel build.
+Customer Orders requests `GET /api/demo/orders` without query parameters. It fetches on open and on return to the tab, then polls every five seconds while visible. The B15 feed returns up to 20 orders. A successful empty feed displays **No recent orders**. HTTP 503 with `DEMO_ORDERS_DISABLED` switches to labeled sample orders. Transient failures keep the last available live results visible.

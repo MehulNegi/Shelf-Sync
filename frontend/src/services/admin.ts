@@ -75,7 +75,7 @@ async function readPanel<T>(path: string, signal: AbortSignal, valid: (value: un
     return { source: 'live', data }
   } catch (error) {
     if (signal.aborted) throw error
-    if (error instanceof ApiError && error.status === 503 && ['ADMIN_DISABLED', 'DEMO_ORDERS_DISABLED'].includes(error.code)) return { source: 'demo' }
+    if (error instanceof ApiError && error.status === 503 && error.code === 'ADMIN_DISABLED') return { source: 'demo' }
     return { source: 'unavailable', error }
   }
 }

@@ -62,7 +62,7 @@ export function InventoryCommandCenter({ view = 'shop' }: { view?: Exclude<Retai
     setCursors((previous) => next ? [...previous, next] : previous.slice(0, -1))
   }
 
-  if (view === 'orders') return <CustomerOrders sample={sample.orders} />
+  if (view === 'orders') return <CustomerOrders sample={sample.orders.orders} />
 
   return (
     <>

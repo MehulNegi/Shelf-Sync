@@ -1,35 +1,43 @@
-import { readOrderPanel, type AdminPanel } from './admin'
+import type { AdminPanel } from './admin'
 import { ApiError } from './api-error'
-import { isMockMode } from './backend'
-import type { AdminOrderRow, AdminSnapshot } from '../types/admin'
+import { isMockMode, requestJson } from './backend'
+import type { AdminOrderRow } from '../types/admin'
+import { cities } from '../types/products'
 
-const configuredPath: string | undefined = import.meta.env.VITE_DEMO_ORDERS_API_PATH
-
-export function retailerOrderPath(path: string | undefined, cursor?: string) {
-  const endpoint = path?.trim() || '/api/admin/orders'
-  if (!/^\/api\/(?:[a-zA-Z0-9_-]+\/)*[a-zA-Z0-9_-]+$/.test(endpoint)) {
-    throw new ApiError(0, 'INVALID_ORDER_FEED', 'The order feed must use a relative /api path.')
+function parseOrder(value: unknown): AdminOrderRow {
+  if (value && typeof value === 'object') {
+    const { id, city, status, total, created_at } = value as Record<string, unknown>
+    if (typeof id === 'string' && id.trim() && typeof city === 'string' && Object.hasOwn(cities, city) &&
+      (status === 'confirmed' || status === 'pending' || status === 'cancelled') &&
+      typeof total === 'number' && Number.isFinite(total) && total >= 0 &&
+      typeof created_at === 'string' && Number.isFinite(Date.parse(created_at))) {
+      return { orderId: id, city: city as AdminOrderRow['city'], status, total, createdAt: created_at }
+    }
   }
-  const params = new URLSearchParams({ limit: '10' })
-  if (cursor) params.set('cursor', cursor)
-  return `${endpoint.slice(5)}?${params}`
+  throw invalidFeed()
 }
 
-export function newestOrders(rows: AdminOrderRow[]) {
-  const sorted = rows.map(({ orderId, city, createdAt, status, total }) => ({ orderId, city, createdAt, status, total }))
-    .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt) || b.orderId.localeCompare(a.orderId))
-  const seen = new Set<string>()
-  return sorted.filter(({ orderId }) => {
-    if (seen.has(orderId)) return false
-    seen.add(orderId)
-    return true
-  })
+function invalidFeed() {
+  return new ApiError(502, 'INVALID_ORDER_FEED', 'The order feed returned an invalid response.')
 }
 
-export async function loadRetailerOrders(cursor: string | undefined, signal: AbortSignal): Promise<AdminPanel<AdminSnapshot['orders']>> {
-  if (isMockMode) return { source: 'demo' } as const
-  const panel = await readOrderPanel(retailerOrderPath(configuredPath, cursor), signal)
-  if (panel.source !== 'live') return panel
-  const { asOf, orders, page } = panel.data
-  return { source: 'live', data: { asOf, orders: newestOrders(orders), page: { limit: page.limit, nextCursor: page.nextCursor } } } as const
+export async function loadRetailerOrders(signal: AbortSignal): Promise<AdminPanel<AdminOrderRow[]>> {
+  if (isMockMode) return { source: 'demo' }
+  try {
+    const feed = await requestJson<{ orders?: unknown }>('/demo/orders', 200, { signal, credentials: 'omit', redirect: 'error' })
+    if (!Array.isArray(feed?.orders)) throw invalidFeed()
+
+    const sorted = feed.orders.map(parseOrder)
+      .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
+    const seen = new Set<string>()
+    return { source: 'live', data: sorted.filter(({ orderId }) => {
+      if (seen.has(orderId)) return false
+      seen.add(orderId)
+      return true
+    }) }
+  } catch (error) {
+    if (signal.aborted) throw error
+    if (error instanceof ApiError && error.status === 503 && error.code === 'DEMO_ORDERS_DISABLED') return { source: 'demo' }
+    return { source: 'unavailable', error: error instanceof SyntaxError ? invalidFeed() : error }
+  }
 }

@@ -8,21 +8,15 @@ import { ApiError } from '../services/api-error'
 import { isMockMode } from '../services/backend'
 import { loadRetailerOrders } from '../services/retailer-orders'
 import { startVisibleRefresh } from '../services/visible-refresh'
-import type { AdminSnapshot } from '../types/admin'
+import type { AdminOrderRow } from '../types/admin'
 
-type OrderPage = AdminSnapshot['orders']
-
-export function CustomerOrders({ sample }: { sample: OrderPage }) {
+export function CustomerOrders({ sample }: { sample: AdminOrderRow[] }) {
   const heading = useRef<HTMLHeadingElement>(null)
   const refresh = useRef<() => void>(() => {})
-  const [cursors, setCursors] = useState<(string | undefined)[]>([undefined])
-  const [state, setState] = useState<{ cursor: string | undefined; panel?: AdminPanel<OrderPage>; loading: boolean }>()
-  const cursor = cursors.at(-1)
-  const current = state?.cursor === cursor ? state : undefined
-  const panel = isMockMode ? { source: 'demo' } as const : current?.panel
+  const [state, setState] = useState<{ panel?: AdminPanel<AdminOrderRow[]>; loading: boolean }>()
+  const panel = isMockMode ? { source: 'demo' } as const : state?.panel
   const data = panel?.source === 'demo' ? sample : panel?.data
-  const nextCursor = data?.page.nextCursor
-  const loading = !isMockMode && (!current || current.loading)
+  const loading = !isMockMode && (!state || state.loading)
 
   useEffect(() => {
     window.scrollTo(0, 0)
@@ -31,12 +25,11 @@ export function CustomerOrders({ sample }: { sample: OrderPage }) {
 
   useEffect(() => {
     if (isMockMode) return
-    const polling = startVisibleRefresh(document, (signal) => loadRetailerOrders(cursor, signal), (event) => {
+    const polling = startVisibleRefresh(document, loadRetailerOrders, (event) => {
       setState((previous) => {
-        const current = previous?.cursor === cursor ? previous : undefined
-        if ('loading' in event) return { cursor, panel: current?.panel, loading: true }
-        const next: AdminPanel<OrderPage> = 'data' in event ? event.data : { source: 'unavailable', error: event.error } as const
-        return { cursor, panel: retainLastLive(next, current?.panel), loading: false }
+        if ('loading' in event) return { panel: previous?.panel, loading: true }
+        const next: AdminPanel<AdminOrderRow[]> = 'data' in event ? event.data : { source: 'unavailable', error: event.error } as const
+        return { panel: retainLastLive(next, previous?.panel), loading: false }
       })
     })
     refresh.current = polling.refresh
@@ -44,7 +37,7 @@ export function CustomerOrders({ sample }: { sample: OrderPage }) {
       polling.stop()
       refresh.current = () => {}
     }
-  }, [cursor])
+  }, [])
 
   return (
     <>
@@ -79,19 +72,8 @@ export function CustomerOrders({ sample }: { sample: OrderPage }) {
             </div>
           </div>
         )}
-        {data ? <RecentOrders orders={data.orders} /> : loading &&
+        {data ? <RecentOrders orders={data} /> : loading &&
           <div className="command-panel command-metric-skeleton motion-safe:animate-pulse" aria-hidden="true" />}
-        {(cursors.length > 1 || (panel?.source === 'live' && data?.page.nextCursor)) && (
-          <div className="command-pagination" aria-label="Order pages">
-            <p>Page {cursors.length}</p>
-            <div>
-              <button className="clear-filters" type="button" disabled={cursors.length === 1}
-                onClick={() => setCursors((previous) => previous.slice(0, -1))}>Previous</button>
-              <button className="clear-filters" type="button" disabled={loading || panel?.source !== 'live' || !nextCursor}
-                onClick={() => { if (nextCursor) setCursors((previous) => [...previous, nextCursor]) }}>Next</button>
-            </div>
-          </div>
-        )}
       </main>
     </>
   )
